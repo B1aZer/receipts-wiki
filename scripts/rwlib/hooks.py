@@ -399,6 +399,45 @@ def hook_prompt(payload):
         _emit(_context("UserPromptSubmit", "\n\n".join(notes)))
 
 
+def area_index_for(home, cwd):
+    """The memory index for a working directory: the nearest folder, walking up from cwd, whose name matches
+    an existing memory/index-<name>.md. The user's home folder and the filesystem root are never matched."""
+    if not cwd:
+        return None
+    try:
+        path = Path(cwd).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return None
+    home = Path(home)
+    if path == home or home in path.parents:
+        return None
+    stop = {Path.home().resolve(), Path(path.anchor)}
+    for folder in [path, *path.parents]:
+        if folder in stop:
+            break
+        index = home / "memory" / f"index-{gitlog.slug(folder.name)}.md"
+        if index.is_file():
+            return index
+    return None
+
+
+def hook_session_area(payload):
+    """SessionStart: load the memory index for the working directory, within its own output budget."""
+    home = config.home()
+    index = area_index_for(home, payload.get("cwd") or os.getcwd())
+    if not index:
+        return
+    text = index.read_text(encoding="utf-8", errors="replace")
+    note = ""
+    if len(text) > config.AREA_INDEX_CHARS:
+        cut = text[: config.AREA_INDEX_CHARS]
+        cut = cut[: cut.rfind("\n")] if "\n" in cut else cut
+        note = f"\n\n[receipts-wiki loaded the first {len(cut)} of {len(text)} characters of this index; open {index} for the rest.]"
+        text = cut
+    _emit(_context("SessionStart", f"Memory index for this working directory, {index}, loaded by receipts-wiki. "
+                                   f"Open only the notes the task needs.\n\n{text.rstrip()}{note}"))
+
+
 def hook_session_start(payload):
     home = config.home()
     session = payload.get("session_id")

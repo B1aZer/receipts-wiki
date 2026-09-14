@@ -8,6 +8,12 @@
             "command": "python3",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "session-start"],
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "session-area"],
+            "timeout": 10
           }
         ]
       }

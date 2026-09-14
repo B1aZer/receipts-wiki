@@ -34,7 +34,7 @@ Merge this into `~/.claude/settings.json`, keeping your other keys. If you alrea
   "cleanupPeriodDays": 90,
   "hooks": {
     "SessionStart": [
-      {"hooks": [{"type": "command", "command": "python3 ~/src/receipts-wiki/scripts/rw.py hook session-start", "timeout": 20}]}
+      {"hooks": [{"type": "command", "command": "python3 ~/src/receipts-wiki/scripts/rw.py hook session-start", "timeout": 20}, {"type": "command", "command": "python3 ~/src/receipts-wiki/scripts/rw.py hook session-area", "timeout": 10}]}
     ],
     "UserPromptSubmit": [
       {"hooks": [{"type": "command", "command": "python3 ~/src/receipts-wiki/scripts/rw.py hook prompt", "timeout": 20}]}

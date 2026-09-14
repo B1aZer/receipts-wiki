@@ -3,7 +3,8 @@
 
 Hooks (called by Claude Code; read the payload on stdin, print at most one JSON object, always exit 0):
     rw.py hook session-start  inject AGENTS.md within budget; catch up on missed commits; mention proposals
-    rw.py hook prompt         UserPromptSubmit: commit an interrupted turn; periodic catch-up
+    rw.py hook session-area   load the memory index that matches the working directory
+    rw.py hook prompt        UserPromptSubmit: commit an interrupted turn; periodic catch-up
     rw.py hook read           PostToolUse on Read: remember the hash of a memory file this session read
     rw.py hook gate           PreToolUse on Write/Edit: block stale, secret-bearing or malformed memory writes
     rw.py hook history        PreToolUse on Bash: block git commands that rewrite the memory repository's history
@@ -32,6 +33,7 @@ from rwlib import cli, config, hooks  # noqa: E402
 
 HOOKS = {
     "session-start": hooks.hook_session_start,
+    "session-area": hooks.hook_session_area,
     "prompt": hooks.hook_prompt,
     "read": hooks.hook_read,
     "gate": hooks.hook_gate,

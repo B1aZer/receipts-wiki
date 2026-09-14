@@ -8,6 +8,8 @@ WRITING_GUIDE = PLUGIN_ROOT / "templates" / "WRITING.md"
 # Claude Code replaces oversized hook output with a stub, so rules injected at session start stay under this.
 AGENTS_BUDGET_BYTES = 8000
 AGENTS_BUDGET_LINES = 50
+# The area index for the working directory is loaded by its own SessionStart hook, under the same output cap.
+AREA_INDEX_CHARS = 9000
 
 # Generated block inside memory/MEMORY.md; text outside it belongs to the user and the agent.
 BLOCK_START = "<!-- receipts-wiki:areas:start -->"

@@ -20,7 +20,7 @@ Status: 0.2.0-dev, in daily use by its author since 2026-09-13. First eval resul
 
 | When | What receipts-wiki does |
 |---|---|
-| The session starts | Loads `~/.agents/AGENTS.md` into the session, capped at 8 KB, mentions lesson proposals waiting for review, and commits what earlier sessions left uncommitted (see the last row) |
+| The session starts | Loads `~/.agents/AGENTS.md` into the session, capped at 8 KB, and the memory index for the working directory: the nearest folder, walking up, whose name matches an `index-<name>.md`, capped at 9,000 characters. Mentions lesson proposals waiting for review, and commits what earlier sessions left uncommitted (see the last row) |
 | A memory file is read | Records the file's hash for this session |
 | Before a memory write | Blocks the write if the file changed after this session read it, or if the text contains a secret value, injected system text or a relative date. Generated index files cannot be edited. The reason goes back to the agent. |
 | Before a git command | Blocks commands that would remove or replace commits in the memory repository (`reset`, `rebase`, `commit --amend`, forced push, `filter-branch`, `update-ref`, `reflog expire`, `gc --prune`, forced branch moves) and points the agent to a forward correction or `git revert`. Other shell commands do not run this check. |

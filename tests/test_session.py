@@ -111,6 +111,30 @@ class SessionTests(HookTestCase):
         self.assertNotIn("per turn", proposals)
         self.assertNotIn("stage only", proposals)
 
+    def test_session_start_loads_the_index_for_the_working_directory(self):
+        (self.home / "memory" / "index-api.md").write_text("# api index\n\n- [cache](cache.md): cache TTL is 5 minutes\n")
+        (self.home / "memory" / "index-indexer-v2.md").write_text("# indexer index\n\n- [lag](lag.md): indexer lag note\n")
+        project = self.tmp / "Sites" / "api" / "services" / "indexer-v2" / "src"
+        project.mkdir(parents=True)
+        nested = self.hook("session-area", {"session_id": "s1", "cwd": str(project)})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("indexer lag note", nested)
+        self.assertNotIn("cache TTL", nested)
+        parent = self.hook("session-area", {"session_id": "s1", "cwd": str(self.tmp / "Sites" / "api" / "services")})
+        self.assertIn("cache TTL is 5 minutes", parent["hookSpecificOutput"]["additionalContext"])
+        self.assertIsNone(self.hook("session-area", {"session_id": "s1", "cwd": str(self.tmp / "Sites")}))
+        self.assertIsNone(self.hook("session-area", {"session_id": "s1", "cwd": str(self.home / "memory")}))
+
+    def test_long_area_index_is_cut_at_a_line_with_a_pointer(self):
+        lines = "".join(f"- [note-{i}](note_{i}.md): a description long enough to add up, number {i}\n" for i in range(400))
+        (self.home / "memory" / "index-api.md").write_text("# api index\n\n" + lines)
+        project = self.tmp / "api"
+        project.mkdir()
+        context = self.hook("session-area", {"session_id": "s1", "cwd": str(project)})["hookSpecificOutput"]["additionalContext"]
+        self.assertLess(len(context), 9500)
+        self.assertIn("for the rest", context)
+        loaded = context.split("\n\n[receipts-wiki loaded")[0]
+        self.assertRegex(loaded.splitlines()[-1], r"number \d+$")
+
     def test_session_start_injects_rules_within_budget(self):
         (self.home / "AGENTS.md").write_text("# AGENTS.md\n\n- Never store secrets.\n")
         context = self.hook("session-start", {"session_id": "s1", "source": "startup"})["hookSpecificOutput"]["additionalContext"]
