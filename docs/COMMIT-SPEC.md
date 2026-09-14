@@ -32,7 +32,7 @@ Per the hooks documentation, `Stop` does not fire when the user interrupts; this
 |---|---|
 | type | `rules` when every change is to `AGENTS.md`, otherwise `memory` |
 | scope | the `metadata.area` shared by every changed note, otherwise `general` |
-| verb | `add`, `update`, `supersede`, `verify`, `retire`, `remove`, `record`, `accept`, `rebuild` |
+| verb | `add`, `update`, `supersede`, `verify`, `retire`, `remove`, `record`, `rebuild` |
 | name | the note's frontmatter `name`, otherwise the file name without `.md`; `MEMORY.md` and `AGENTS.md` by file name, after the notes |
 
 Subjects are kept under 72 characters. Names that do not fit are replaced by `and N more`; the trailers still list every file. A commit that only regenerates indexes has the subject `memory(general): rebuild indexes`.
@@ -68,7 +68,6 @@ Each action line is capped at 200 characters.
 | Event | Detected when |
 |---|---|
 | `fact.added` | the file is not in `HEAD` |
-| `proposal.accepted` | the file is not in `HEAD` and its frontmatter has `source: proposal` |
 | `fact.superseded` | the number of `Supersedes (` lines increased |
 | `fact.retired` | frontmatter `status` changed to `retired` |
 | `fact.verified` | only `last_verified` changed |

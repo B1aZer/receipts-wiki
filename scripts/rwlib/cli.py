@@ -77,7 +77,7 @@ def install_git_hook(home, rw_path):
 
 RELITIGATE = re.compile(r"re-?litigate|don.t revisit|do not revisit|don.t rebuild", re.I)
 LINK = re.compile(r"\]\(([^)#\s]+\.md)(?:#[^)]*)?\)")
-IGNORED = ("sessions/", "proposals/", ".state/")
+IGNORED = ("sessions/", ".state/")
 
 
 def record(home, agent="unknown"):
@@ -286,8 +286,6 @@ def lint(home, stale_days=90, unread_days=60, today=None):
             if size > indexer.MAX_BYTES or lines > indexer.MAX_LINES:
                 warnings.append(f"memory/{path.name} is {lines} lines / {size} bytes, over the {indexer.MAX_LINES}-line / {indexer.MAX_BYTES}-byte budget")
 
-    pending = sorted((home / "proposals").glob("*.md")) if (home / "proposals").exists() else []
-
     print(f"# receipts-wiki lint: {home}\n")
     print("Report only; nothing was changed.\n")
     for title, items in (("Problems", problems), ("Warnings", warnings)):
@@ -296,7 +294,4 @@ def lint(home, stale_days=90, unread_days=60, today=None):
         print()
     print(f"## Forgetting candidates ({len(forget)}), retire only with the owner's approval\n")
     print("\n".join(f"- {rel}: {'; '.join(reasons)}" for rel, reasons in sorted(forget.items())) if forget else "None.")
-    print()
-    print(f"## Lesson proposals waiting ({len(pending)})\n")
-    print("\n".join(f"- {path.relative_to(home)}" for path in pending) if pending else "None.")
     return 0

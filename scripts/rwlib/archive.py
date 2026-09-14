@@ -1,22 +1,13 @@
-"""Conversation archive and lesson candidates, updated at the end of each turn, outside git.
+"""Conversation archive, updated at the end of each turn, outside git.
 
-Archive files are append-only: one file per session per month, and text already written is never
-changed. Lesson candidates are the user's own words, quoted; nothing is drafted by a model here and
-nothing is written to memory.
+Archive files are append-only: one file per session per month, and text already written is never changed.
+It holds only what the user and the agent wrote as messages, redacted, and is searched only on request.
 """
-import hashlib
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 from . import secrets, transcript
-
-LESSON_MARKER = re.compile(
-    r"\b(from now on|never|always|don't|do not|stop doing|i meant|that's wrong|that is wrong|not what i|remember that|make sure)\b",
-    re.I,
-)
-LESSON_MIN_CHARS = 15
-LESSON_MAX_CHARS = 600
 
 
 def _safe(session):
@@ -71,52 +62,3 @@ def append(home, session, transcript_path, cwd, data):
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(header + "\n".join(blocks) + "\n")
     return messages
-
-
-def lesson_candidates(messages, limit=2):
-    """Short paragraphs of user messages that read like a correction or a standing rule."""
-    scored = []
-    for message in messages:
-        if message["role"] != "user":
-            continue
-        for paragraph in re.split(r"\n\s*\n", message["text"]):
-            text = paragraph.strip()
-            if not (LESSON_MIN_CHARS <= len(text) <= LESSON_MAX_CHARS):
-                continue
-            markers = {hit.lower() for hit in LESSON_MARKER.findall(text)}
-            if markers:
-                scored.append((len(markers), message["line"], dict(message, text=text)))
-    scored.sort(key=lambda item: (-item[0], item[1]))
-    return [message for _, _, message in scored[:limit]]
-
-
-def _digest(text):
-    return hashlib.sha256(" ".join(text.lower().split()).encode("utf-8")).hexdigest()[:16]
-
-
-def write_proposals(home, session, picks, data):
-    """Append new candidates to proposals/<session>.md, skipping ones already proposed in this session."""
-    seen = set(data.get("lessons") or [])
-    fresh = [message for message in picks if _digest(message["text"]) not in seen]
-    if not fresh:
-        return None
-    folder = Path(home) / "proposals"
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{_safe(session)}.md"
-    lines = []
-    if not path.exists():
-        lines += [
-            "# Lesson candidates",
-            "",
-            f"Session {session}. These are the user's own words, flagged because they read like a correction or a standing rule. "
-            "Nothing has been written to memory. Review them with the receipts-wiki lint-review skill: draft a note with the user, or discard them.",
-            "",
-        ]
-    for message in fresh:
-        quote = "\n".join("> " + line for line in secrets.redact(message["text"]).strip().splitlines())
-        lines += [f"## {_one_line(message['ts'])} (line {message['line']})", "", quote, "", f"Receipt: session:{session}#L{message['line']}", ""]
-        seen.add(_digest(message["text"]))
-    with open(path, "a", encoding="utf-8") as handle:
-        handle.write("\n".join(lines) + "\n")
-    data["lessons"] = sorted(seen)
-    return path

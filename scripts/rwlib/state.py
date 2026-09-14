@@ -2,8 +2,9 @@
 
 sessions/<id>.json   one log per session: files it wrote this turn and not yet committed ("pending"),
                      hashes of memory files it read or wrote, how far its transcript was archived,
-                     lesson digests already proposed, and when it last swept or mentioned proposals
-last_read.json       per memory file: the last date any session read or wrote it (forgetting proposals)
+                     when its current turn started and stopped, and when it last swept
+last_read.json       per memory file: the last date any session read or wrote it (forgetting candidates)
+commit_health.json   the last failed catch-up commit, until a later one succeeds
 """
 import hashlib
 import json

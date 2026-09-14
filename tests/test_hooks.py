@@ -41,7 +41,8 @@ class HookTestCase(unittest.TestCase):
         return subprocess.run(["git", "-C", str(cwd or self.home), *args], capture_output=True, text=True, check=False)
 
     def env(self):
-        return dict(os.environ, RECEIPTS_WIKI_HOME=str(self.home), RECEIPTS_WIKI_CLAUDE_SETTINGS=str(self.tmp / "no-settings.json"))
+        return dict(os.environ, RECEIPTS_WIKI_HOME=str(self.home), RECEIPTS_WIKI_CLAUDE_SETTINGS=str(self.tmp / "no-settings.json"),
+                    RECEIPTS_WIKI_ATTENDED="1")
 
     def hook(self, name, payload):
         result = subprocess.run(
@@ -446,14 +447,6 @@ class TurnTests(HookTestCase):
     def test_no_hint_for_weak_overlap(self):
         self.write_and_capture("memory/project_quotes_cache.md", note("quotes-cache-ttl", "quotes cache ttl five minutes", "Old."), turn="t1")
         self.assertIsNone(self.write("memory/project_cdn.md", note("cdn-edge", "quotes cdn edge purge", "New."), turn="t2"))
-
-    def test_note_drafted_from_a_proposal_commits_as_accepted(self):
-        self.write_and_capture("memory/feedback_quotes.md", note(
-            "quotes-cache-limit", "never cache quotes past 5 minutes", "Never cache quotes longer than 5 minutes.",
-            extra="  source: proposal\n  receipts: [session:s-end#L2]\n"))
-        message = self.last_message()
-        self.assertIn("Change: proposal.accepted memory/feedback_quotes.md", message)
-        self.assertIn("memory(api): accept quotes-cache-limit", message)
 
     def test_commits_leave_other_dirty_files_alone(self):
         (self.home / "memory" / "untouched.md").write_text(note("untouched", "left alone", "Dirty, written by nobody's hook."))

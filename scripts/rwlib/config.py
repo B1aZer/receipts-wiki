@@ -19,10 +19,23 @@ BLOCK_END = "<!-- receipts-wiki:areas:end -->"
 STALE_JOURNAL_MINUTES = 60
 # Catch-up at a new prompt runs at most this often per session.
 SWEEP_INTERVAL_SECONDS = 600
-# Pending lesson proposals are mentioned at most this often per session.
-PROPOSAL_NOTICE_SECONDS = 86400
 # Session logs with nothing pending are removed after this many days of inactivity.
 JOURNAL_RETENTION_DAYS = 30
+
+
+def attended():
+    """False in sessions nobody is watching, such as `claude -p` or SDK runs, where receipts-wiki adds no context.
+
+    Claude Code sets CLAUDE_CODE_SESSION_ATTENDED (1 or 0) and CLAUDE_CODE_ENTRYPOINT (cli, sdk-cli, ...) for hooks.
+    RECEIPTS_WIKI_ATTENDED=1 or 0 overrides both, for example in evals that use `claude -p` to stand in for a user.
+    """
+    override = os.environ.get("RECEIPTS_WIKI_ATTENDED")
+    if override in ("0", "1"):
+        return override == "1"
+    flag = os.environ.get("CLAUDE_CODE_SESSION_ATTENDED")
+    if flag in ("0", "1"):
+        return flag == "1"
+    return not os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
 
 
 def home():

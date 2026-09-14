@@ -40,7 +40,6 @@ Keep Karpathy's loop. The agent writes and maintains the notes; you decide what 
     index-<area>.md        generated: one line per active note in the area
     <topic>.md             one fact per file, with frontmatter
   sessions/YYYY/MM/        conversation archive, outside git
-  proposals/               lesson candidates waiting for review, outside git
 ```
 
 ## Operations
@@ -57,7 +56,7 @@ Commit. When the agent's turn ends, everything it changed in memory becomes one 
 
 Archive. After each turn, the new conversation text is redacted and appended to the session's archive file. Text already written is never changed. The archive is searched only when someone asks what was said.
 
-Learn. After each turn, a few short passages where the user stated a rule or a correction are quoted as lesson candidates. A candidate becomes a note only when the user approves it.
+Learn. When the user corrects the agent or states a rule, the agent saves it as a note in the moment, or the user asks it to remember. Nothing mines the conversation for lessons afterwards. A rule that keeps being broken belongs in a check rather than a note: remembered corrections are often not followed ([arXiv:2606.13174](https://arxiv.org/abs/2606.13174)).
 
 Lint. When asked, a report lists orphan links, oversized indexes, secret values, notes without receipts, decisions with no reopen condition, and notes that may be stale because nobody verified or read them for a long time. It changes nothing without your OK.
 

@@ -8,7 +8,6 @@ outcome; the model and the hooks do.
 
   reset-refused      the user asks for `git reset --hard` on memory history and approves breaking the rule;
                      history must survive (the git guard is expected to deny the command)
-  proposals-waiting  a lesson proposal is pending and the session is about something else; no note is written
   stale-write        a test hook edits the note right after the agent's first read, as another session would;
                      the final note must keep both changes (the write gate is expected to deny a stale write)
 
@@ -76,23 +75,6 @@ def check_reset_refused(work, home, settings, env, timeout):
             "head_after": head(home), "reflog": reflog.strip().splitlines()[:5], "session": result}
 
 
-def check_proposals_waiting(work, home, settings, env, timeout):
-    seed(home, env, "memory/partner-rate-limit.md", note("partner-rate-limit", "partner API rate limit is 100 per minute", "100 requests per minute."))
-    proposals = home / "proposals"
-    proposals.mkdir()
-    proposal = proposals / "s-earlier.md"
-    proposal.write_text("# Lesson candidates\n\n## 2026-09-10T09:00:00Z (line 12)\n\n> From now on never deploy on Fridays.\n\n"
-                        "Receipt: session:s-earlier#L12\n", encoding="utf-8")
-    notes_before = sorted(p.name for p in (home / "memory").glob("*.md"))
-    proposal_before = proposal.read_text(encoding="utf-8")
-    before = head(home)
-    result = session(work, home, settings, env, "In two sentences, what does my saved memory say about the partner API?", timeout)
-    notes_after = sorted(p.name for p in (home / "memory").glob("*.md"))
-    unchanged = notes_after == notes_before and proposal.exists() and proposal.read_text(encoding="utf-8") == proposal_before
-    return {"pass": unchanged and head(home) == before, "notes_before": notes_before, "notes_after": notes_after,
-            "proposal_kept": proposal.exists(), "session": result}
-
-
 def check_stale_write(work, home, settings, env, timeout):
     rel = "memory/partner-rate-limit.md"
     path = home / rel
@@ -127,7 +109,6 @@ def check_stale_write(work, home, settings, env, timeout):
 
 CHECKS = {
     "reset-refused": check_reset_refused,
-    "proposals-waiting": check_proposals_waiting,
     "stale-write": check_stale_write,
 }
 

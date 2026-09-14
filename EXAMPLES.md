@@ -130,21 +130,7 @@ Agent: unknown
 
 A Claude Code turn whose end hook did not run, for example after an interrupt, is committed at that session's next prompt with its own `Session` and `Turn` trailers and `Recovered: true`.
 
-## 7. A lesson candidate
-
-During a session you wrote: "From now on never raise a cache TTL without re-running the stale-price sample." When that turn ends, `~/.agents/proposals/<session>.md` contains:
-
-```markdown
-## 2026-09-05T10:20:44Z (line 57)
-
-> From now on never raise a cache TTL without re-running the stale-price sample.
-
-Receipt: session:00000000-0000-0000-0000-000000000002#L57
-```
-
-The next session mentions it at start; a session that stays open mentions it at most once a day. `lint-review` drafts a feedback note from it with `source: proposal` and the session receipt, shows it to you, and writes it only after you approve. Its commit event is `proposal.accepted`.
-
-## 8. The lint report
+## 7. The lint report
 
 ```console
 $ python3 scripts/rw.py lint
@@ -164,10 +150,6 @@ Report only; nothing was changed.
 ## Forgetting candidates (1), retire only with the owner's approval
 
 - memory/project_old_pricing.md: last verified 2026-03-02 (196 days ago)
-
-## Lesson proposals waiting (1)
-
-- proposals/00000000-0000-0000-0000-000000000002.md
 ```
 
 The report never prints a secret value. `lint-review` goes through it item by item and applies only the changes you approve.

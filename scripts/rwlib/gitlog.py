@@ -16,7 +16,6 @@ VERBS = {
     "fact.removed": "remove",
     "rules.changed": "update",
     "external.change": "record",
-    "proposal.accepted": "accept",
     "index.rebuilt": "rebuild",
 }
 SPECIAL = {"memory/MEMORY.md": "MEMORY.md", "AGENTS.md": "AGENTS.md"}
@@ -102,9 +101,6 @@ def derive_event(rel, old, new):
     if new is None:
         return "fact.removed"
     if old is None:
-        new_fm, _ = frontmatter.split(new)
-        if frontmatter.get(new_fm, "source", "metadata.source") == "proposal":
-            return "proposal.accepted"
         return "fact.added"
     if len(SUPERSEDES.findall(new)) > len(SUPERSEDES.findall(old)):
         return "fact.superseded"

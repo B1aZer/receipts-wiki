@@ -136,9 +136,11 @@ def prepare(arm):
     if arm == "receipts-wiki":
         for args in (["init", "-q", "-b", "main"], ["config", "user.name", "eval"], ["config", "user.email", "eval@example.com"]):
             git(home, *args)
-        (home / ".gitignore").write_text("sessions/\nproposals/\n.state/\n")
+        (home / ".gitignore").write_text("sessions/\n.state/\n")
         (home / "AGENTS.md").write_text(memory_rules(home), encoding="utf-8")
         env["RECEIPTS_WIKI_HOME"] = str(home)
+        # `claude -p` sessions count as unattended; the eval stands in for a user, so it gets the full plugin.
+        env["RECEIPTS_WIKI_ATTENDED"] = "1"
         env["RECEIPTS_WIKI_CLAUDE_SETTINGS"] = str(settings)
         subprocess.run(["python3", str(PLUGIN_ROOT / "scripts" / "rw.py"), "record", "--agent", "eval-setup"],
                        env=env, capture_output=True, text=True, check=True)

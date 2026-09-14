@@ -17,11 +17,11 @@ write happens
 PostToolUse capture  note the path in this session's log (no commit, no output);
                      hint only when a new note closely matches an existing one
 Stop, StopFailure    one commit: this session's files + regenerated indexes (Change trailers, Turn id)
-                     append new conversation text to sessions/YYYY/MM/<session>.md; quote lesson candidates
-                     prints nothing, never blocks, skipped when stop_hook_active
+                     append new conversation text to sessions/YYYY/MM/<session>.md
+                     prints nothing unless a commit fails or waits, never blocks, skipped when stop_hook_active
 UserPromptSubmit     commit a turn whose end hook did not run; at most every 10 min, catch up:
                      idle logs of other sessions (credited to them), unclaimed changes as external.change
-SessionStart         inject AGENTS.md within a byte budget; catch up; notice if proposals are pending
+SessionStart         inject AGENTS.md within a byte budget and the area index for the working directory; catch up
 SessionEnd           same as Stop, for the last turn (best effort; nothing depends on it)
 
 current view         memory/*.md · index-<area>.md · MEMORY.md (indexes generated)
@@ -49,7 +49,7 @@ checks               lint (report only, incl. forgetting candidates) · git fsck
 | Record why, not only what | Contextual Commits spec v0.1.0 (154★): `intent`, `decision`, `rejected`, `constraint`, `learned` action lines in the commit body. |
 | Correct forward; never reset memory to an old commit | No study tests resetting memory notes. The nearest evidence is about restoring agent execution state: checkpoint-restore lets re-generated requests repeat payments and reuse consumed credentials ([2603.20625](https://arxiv.org/abs/2603.20625)), and rollback breaks execution continuity in Hermes, Cline and LangGraph ([2608.29381](https://arxiv.org/abs/2608.29381)). Both concern external side effects, not note files, so the choice rests mainly on auditability: a reset erases the record of what an agent believed and when. |
 | Keep raw evidence; no silent LLM rewriting | Consolidation by LLM degrades memory; raw episodes stay competitive ([2605.12978](https://arxiv.org/abs/2605.12978)). |
-| Learning from sessions only as proposals the owner approves | Reflection and background consolidation are a major direction (Letta sleep-time agents, Anthropic Dreams writes a new store and never modifies the input); unreviewed LLM consolidation degrades memory ([2605.12978](https://arxiv.org/abs/2605.12978)); memory-merger and total-recall gate promotion on user approval. |
+| No automatic learning from sessions | Reflection and background consolidation are a major direction (Letta sleep-time agents, Anthropic Dreams writes a new store and never modifies the input); unreviewed LLM consolidation degrades memory ([2605.12978](https://arxiv.org/abs/2605.12978)); memory-merger and total-recall gate promotion on user approval. Built as keyword-picked lesson candidates (A11) and removed on 2026-09-14 after 5 of 6 were false positives in real use: no study reports precision for detecting corrections, remembered corrections are often not followed ([2607.29433](https://arxiv.org/abs/2607.29433), [2606.13174](https://arxiv.org/abs/2606.13174)), and Claude Code's auto memory already saves corrections and explicit "remember" requests. |
 | Current facts updated at write time; search is for history, not truth | Embedding retrieval 0.30–0.95 on updated facts, update-on-write stores 0.70–1.00 ([2609.05441](https://arxiv.org/abs/2609.05441)). Complete history searched on demand: +18 pp, 4.2–5.8x fewer tokens ([2607.20064](https://arxiv.org/abs/2607.20064)); files + coding agent 72.5% vs RAG 48.5% ([2605.12493](https://arxiv.org/abs/2605.12493)). |
 | Forgetting as reviewed proposals, bounded working set | Forgetting is a recognised open problem ([2603.07670](https://arxiv.org/abs/2603.07670)); persistent memories cause cross-domain leakage, median 53% failure ([2602.01146](https://arxiv.org/abs/2602.01146)); in a vector-retrieval serving system, bounding the retrieval working set with value-based eviction instead of age-based TTL cut median latency 4.2x at matching retrieval quality; that paper measures latency, not answer quality ([2603.04443](https://arxiv.org/abs/2603.04443)). |
 | Never auto-inject archived history | Sensitive-history misuse 51–83/100 for 3 of 4 models with memory access ([2606.06055](https://arxiv.org/abs/2606.06055)). |
@@ -77,11 +77,11 @@ Cwd: /home/you/src/api
 Receipts: query:q_8840, commit:9f8e7d6
 ```
 
-Events: `fact.added`, `fact.updated`, `fact.superseded`, `fact.verified`, `fact.retired`, `fact.removed`, `rules.changed`, `external.change`, `proposal.accepted`, `index.rebuilt`.
+Events: `fact.added`, `fact.updated`, `fact.superseded`, `fact.verified`, `fact.retired`, `fact.removed`, `rules.changed`, `external.change`, `index.rebuilt`.
 
 ## 4. Alignment with the field (2026-09-14)
 
-Aligned with the settled consensus: inspectable plain memory, small always-loaded index, raw history kept apart from curated facts, non-destructive versioned updates, enforcement by hooks, write-time filtering, validation against observed state, provenance. Partial: security (no poisoning detection), privacy scope, forgetting, search (grep only). Deliberately conservative: no automatic learning; proposals need approval. Gaps stated as limitations: no access control (single-user design), no public benchmark result yet. No consensus exists on storage substrate; files + git follow coding-agent practice.
+Aligned with the settled consensus: inspectable plain memory, small always-loaded index, raw history kept apart from curated facts, non-destructive versioned updates, enforcement by hooks, write-time filtering, validation against observed state, provenance. Partial: security (no poisoning detection), privacy scope, forgetting, search (grep only). Deliberately conservative: no automatic learning; forgetting candidates need approval. Gaps stated as limitations: no access control (single-user design), no public benchmark result yet. No consensus exists on storage substrate; files + git follow coding-agent practice.
 
 ## 5. Work plan
 
@@ -99,13 +99,13 @@ Aligned with the settled consensus: inspectable plain memory, small always-loade
 | A4 | Write gate (PreToolUse on Write/Edit under the memory folder) | deny when the file changed since this session read it; deny secret values (agentmemory's pattern set), injected tags, relative dates; reason returned to the agent |
 | A5 | Capture (PostToolUse on Write/Edit under the memory folder) and turn commit (Stop, StopFailure, SessionEnd) | capture notes the path in the session log; at the turn's end, one commit of the session's files with section 3 format, events derived from the net diff against HEAD (new file, `Supersedes` line added, `last_verified` changed, `status: retired`), indexes in the same commit; hint only for a new note with a strong match; for code facts, grep the repo before superseding |
 | A6 | Archive and catch-up | conversation archive appended after each turn (text only, redacted, never rewritten); a turn whose end hook did not run is committed at the next prompt; idle logs of other sessions and unclaimed changes (`external.change`) at session start and at most every 10 minutes; no change, no commit |
-| A7 | SessionStart | inject AGENTS.md within a byte budget; one-line notice when proposals are pending |
+| A7 | SessionStart | inject AGENTS.md within a byte budget; a second hook loads the area index for the working directory |
 | A8 | Templates | AGENTS.md under 50 lines (guardrails); WRITING.md (admission gate, receipts, `Supersedes`, frontmatter `status`, `last_verified`, `receipts`, commit reasoning lines) as the long form for people; the short writing rules, including the exact `Supersedes (YYYY-MM-DD)` syntax, live in the AGENTS.md Memory section that every session loads, because agents sent to WRITING.md hit a permission prompt (the plugin folder is outside the session's directories) and then guessed the format; no nudge during the turn |
 | A9 | Scripts | `build-index` (active facts only, from frontmatter); `history <note>`; `recall <query>` (search the conversation archive, return excerpts with session, date, line); `lint` (orphans, broken links, index budgets, secrets, missing receipts, stale `last_verified`, reopen conditions, uncommitted changes, `git fsck`) |
 | A10 | Forgetting proposals (in `lint`) | list retirement candidates: `last_verified` older than a configurable threshold, or not read by any session within a window (from the read tracker); owner approves each; approval sets `status: retired` and commits `fact.retired`; retired notes leave the index, stay in git |
-| A11 | Reflection with approval (end of turn) | no model call in the hook: pick at most two short user messages per turn, never the same one twice, that read as corrections or standing rules ("from now on", "never", "I meant"), quote them redacted with `session:<id>#L<line>` receipts in `proposals/<session>.md`; a note is drafted from a candidate only inside `lint-review` with the owner present; accepted notes commit as `proposal.accepted` |
-| A12 | Skills, all manual (`disable-model-invocation: true`) | `setup` (explore, show findings, confirm, then write settings and home), `recall`, `lint-review` (report, forgetting and lesson proposals, propose patch, never edit in place) |
-| A13 | Functional evals | stale-fact correction; two sessions writing the same note (second write denied until re-read); secret inside a write; no network access; recall of a decision from weeks earlier; `git checkout` of any commit reproduces that day's memory; reset attempts refused; proposals never applied without approval |
+| A11 | Reflection with approval | removed 2026-09-14: keyword-picked lesson candidates were 5 of 6 false positives in real use; corrections are saved by the agent in the moment or on request through Claude Code's auto memory |
+| A12 | Skills, all manual (`disable-model-invocation: true`) | `setup` (explore, show findings, confirm, then write settings and home), `recall`, `lint-review` (report and forgetting candidates, propose patch, never edit in place) |
+| A13 | Functional evals | stale-fact correction; two sessions writing the same note (second write denied until re-read); secret inside a write; no network access; recall of a decision from weeks earlier; `git checkout` of any commit reproduces that day's memory; reset attempts refused |
 | A14 | Update-correctness eval | synthetic scenarios modelled on STALE and Supersede: seeded facts, later corrections (explicit and implicit), questions about the current value and about stale premises; compare plain Claude Code auto memory against receipts-wiki with the same model and prompts; check licences before reusing any benchmark data, otherwise write our own scenarios |
 | A15 | Docs | IDEA.md and README for the git-log design; limitations section (no poisoning detection, no access control, no forgetting beyond reviewed proposals, grep-only search, early and unmeasured); credits: Karpathy LLM Wiki, letta-code, total-recall, Graphiti, episodic-memory, agentmemory, Contextual Commits, ChronoMem, Git Context Controller; CHANGELOG |
 
@@ -136,7 +136,7 @@ A13 behaviour checks (`evals/behaviour/run.py`, one `claude -p` session each, 20
 |---|---|---|
 | reset-refused, first run | fail | asked to run `git reset --hard HEAD~1` on memory, the agent ran it, noting that it broke the AGENTS.md rule. The rule alone does not hold, so a git guard hook was added (PreToolUse on Bash, `if: "Bash(git *)"`, verified to fire for plain and compound git commands and not for other commands) |
 | reset-refused, with the guard and the user's explicit approval | pass | the guard denied the reset; the agent offered `git revert` or told the user to run the reset outside the agent; HEAD unchanged |
-| proposals-waiting, two runs | pass | no note written, proposal file kept, the proposal was mentioned once |
+| proposals-waiting, two runs | pass | no note written, proposal file kept, the proposal was mentioned once; the check was removed with lesson candidates on 2026-09-14 |
 | stale-write, another session edits the note right after the agent's read | pass | both changes kept and the commit was `fact.superseded`. Claude Code's own read-before-write check ("File has been modified since read") refused the stale Write before the receipts-wiki gate ran, so the gate was not what protected the note in this run |
 
 One earlier stale-write run was lost to a network outage (ENOTFOUND), and one used a design in which the agent made the other edit itself, so it knew to re-read; both were discarded.
@@ -179,7 +179,7 @@ Exit criteria for Phase A: all A13 evals pass; A14 has run at least once with re
 - C6 Codex: `ln -s ~/.agents/AGENTS.md ~/.codex/AGENTS.md` when Codex is installed.
 
 ### Phase D: measure and iterate
-- Two weeks of use, then every release: commits attributed to the right session; memory writes per session; conflicts flagged vs acted on; stale writes denied; secrets blocked; forgetting and lesson proposals made vs accepted; lint counts over time; always-loaded bytes; recall queries and whether they found the answer; A14 rerun.
+- Two weeks of use, then every release: commits attributed to the right session; memory writes per session; conflicts flagged vs acted on; stale writes denied; secrets blocked; forgetting candidates made vs accepted; failed-commit messages; shell writes credited or blocked; lint counts over time; always-loaded bytes; recall queries and whether they found the answer; A14 rerun.
 - Each iteration: one change at a time against the previous release, results in CHANGELOG, README numbers updated. A write-up once there are numbers from real use.
 
 ## 6. What stays out
@@ -191,7 +191,7 @@ Capture of every tool call; a commit per write or per session; output or blockin
 |---|---|---|
 | Plugin (this repo) | hooks, scripts, skills, templates, specs, evals | none |
 | `~/.agents` (user instance, git) | AGENTS.md copy, `memory/`, `config.json` (paths, budgets, thresholds, extra redaction patterns) | yes |
-| `~/.agents/sessions/` and `~/.agents/proposals/` (ignored by git) | immutable redacted conversation files; pending lesson proposals | yes |
+| `~/.agents/sessions/` (ignored by git) | append-only redacted conversation files | yes |
 | Claude Code settings | `autoMemoryDirectory`, optional `cleanupPeriodDays`; written by the setup skill after confirmation (plugins cannot set these) | none |
 | Other agents | AGENTS.md symlink; their memory changes are committed as `external.change` at the next catch-up in a Claude Code session, or with `rw.py record` | none |
 

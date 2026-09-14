@@ -61,11 +61,6 @@ def _added_lines(path, proposed):
     return "\n".join(line for line in proposed.splitlines() if line not in existing)
 
 
-def _proposals_waiting(home):
-    folder = home / "proposals"
-    return sorted(folder.glob("*.md")) if folder.exists() else []
-
-
 def hook_read(payload):
     rel = config.tracked(_tool_input(payload).get("file_path"))
     if not rel:
@@ -290,7 +285,7 @@ def hook_capture(payload):
     state.save(session, data)
     state.touch_read(rel)
 
-    if is_new and indexer.is_note(rel):
+    if is_new and indexer.is_note(rel) and config.attended():
         strong, _ = related.candidates(home, rel, path.read_text(encoding="utf-8", errors="replace"))
         if strong:
             _emit(_context("PostToolUse", "Possible duplicate or contradiction: " + ", ".join(strong)
@@ -311,9 +306,8 @@ def _end_turn(payload):
                             cwd=payload.get("cwd"), transcript=payload.get("transcript_path"))
     data["turn_stopped"] = time.time()
     transcript_path = payload.get("transcript_path")
-    if transcript_path:
-        messages = archive.append(home, session, transcript_path, payload.get("cwd"), data)
-        archive.write_proposals(home, session, archive.lesson_candidates(messages), data)
+    if transcript_path and config.attended():
+        archive.append(home, session, transcript_path, payload.get("cwd"), data)
     state.save(session, data)
     failure = data.get("commit_failure")
     if failure and data.get("pending"):
@@ -369,7 +363,7 @@ def hook_session_end(payload):
 
 
 def hook_prompt(payload):
-    """New user prompt: commit an interrupted previous turn, catch up now and then, mention proposals once a day.
+    """New user prompt: commit an interrupted previous turn, catch up now and then, pass on notices for the agent.
 
     A prompt can also arrive inside a running turn, for example when a background task finishes; it then
     carries the running turn's prompt_id, and that turn's writes stay pending until its Stop.
@@ -390,12 +384,8 @@ def hook_prompt(payload):
         turns.sweep(home, current_session=session)
         data["swept_at"] = state.now_iso()
     notes = data.pop("agent_notices", None) or []
-    waiting = _proposals_waiting(home)
-    if waiting and state.seconds_since(data.get("proposals_noticed_at")) > config.PROPOSAL_NOTICE_SECONDS:
-        notes.append(f"{len(waiting)} lesson proposal file(s) are waiting in {home / 'proposals'}. Mention this to the user once; they can review them with the receipts-wiki lint-review skill.")
-        data["proposals_noticed_at"] = state.now_iso()
     state.save(session, data)
-    if notes:
+    if notes and config.attended():
         _emit(_context("UserPromptSubmit", "\n\n".join(notes)))
 
 
@@ -423,6 +413,8 @@ def area_index_for(home, cwd):
 
 def hook_session_area(payload):
     """SessionStart: load the memory index for the working directory, within its own output budget."""
+    if not config.attended():
+        return
     home = config.home()
     index = area_index_for(home, payload.get("cwd") or os.getcwd())
     if not index:
@@ -478,12 +470,10 @@ def hook_session_start(payload):
                 shown = ", ".join(stale[:3]) + (f" and {len(stale) - 3} more" if len(stale) > 3 else "")
                 notices.append(f"receipts-wiki: {len(stale)} memory file(s) have been uncommitted for over "
                                f"{turns.STALE_UNCOMMITTED_MINUTES} minutes: {shown}. Run `rw.py lint` for details.")
-        waiting = _proposals_waiting(home)
-        if waiting:
-            parts.append(f"{len(waiting)} lesson proposal file(s) are waiting in {home / 'proposals'}. Mention this to the user once; they can review them with the receipts-wiki lint-review skill.")
-            data["proposals_noticed_at"] = state.now_iso()
         state.save(session, data)
 
+    if not config.attended():
+        parts = []
     output = _context("SessionStart", "\n\n".join(parts)) if parts else {}
     if notices:
         output["systemMessage"] = " ".join(notices)

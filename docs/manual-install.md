@@ -15,7 +15,7 @@ The rest of this page uses `~/src/receipts-wiki`; replace it with your path.
 ```bash
 mkdir -p ~/.agents/memory
 git -C ~/.agents init -b main
-printf 'sessions/\nproposals/\n.state/\n' >> ~/.agents/.gitignore
+printf 'sessions/\n.state/\n' >> ~/.agents/.gitignore
 [ -f ~/.agents/AGENTS.md ] || cp ~/src/receipts-wiki/templates/AGENTS.md ~/.agents/AGENTS.md
 python3 ~/src/receipts-wiki/scripts/rw.py install-git-hook
 ```

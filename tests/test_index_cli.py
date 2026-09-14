@@ -130,7 +130,7 @@ class CommandTests(HookTestCase):
 
     def test_record_commits_everything_uncommitted_under_the_given_agent(self):
         (self.home / "memory" / "imported.md").write_text(note("imported", "copied from an old project", "Body."))
-        (self.home / ".gitignore").write_text("sessions/\nproposals/\n.state/\n")
+        (self.home / ".gitignore").write_text("sessions/\n.state/\n")
         output = self.cli("record", "--agent", "receipts-wiki-setup")
         self.assertIn("committed 2 change(s)", output)
         message = self.last_message()
@@ -177,7 +177,7 @@ class CommandTests(HookTestCase):
         self.assertNotIn("hunter2value", output)
 
     def test_lint_reports_secrets_receipts_and_forgetting_without_echoing_secrets(self):
-        (self.home / ".gitignore").write_text("sessions/\nproposals/\n.state/\n")
+        (self.home / ".gitignore").write_text("sessions/\n.state/\n")
         self.write_and_capture("memory/old.md", note("old-fact", "an old fact", "Body.", extra="  last_verified: 2025-01-01\n"))
         (self.home / "memory" / "leak.md").write_text(note("leak", "has a key", "token: abcdefghijklmnopqrstuvwxyz123456"))
         output = self.cli("lint")
@@ -189,7 +189,7 @@ class CommandTests(HookTestCase):
         self.assertNotIn(".gitignore does not exclude", output)
 
     def test_lint_accepts_receipts_cited_in_the_text(self):
-        (self.home / ".gitignore").write_text("sessions/\nproposals/\n.state/\n")
+        (self.home / ".gitignore").write_text("sessions/\n.state/\n")
         cited = {
             "commit.md": "Fixed in commit a1b2c3d on 2026-09-02.",
             "path.md": "The gate lives in `scripts/rwlib/hooks.py`.",
@@ -208,7 +208,7 @@ class CommandTests(HookTestCase):
     def test_lint_flags_missing_gitignore_and_broken_links(self):
         self.write_and_capture("memory/a.md", note("a", "cache", "See [missing](gone.md)."))
         output = self.cli("lint")
-        self.assertIn(".gitignore does not exclude sessions/, proposals/, .state/", output)
+        self.assertIn(".gitignore does not exclude sessions/, .state/", output)
         self.assertIn("memory/a.md links to missing gone.md", output)
 
 

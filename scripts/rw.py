@@ -2,7 +2,7 @@
 """receipts-wiki command line.
 
 Hooks (called by Claude Code; read the payload on stdin, print at most one JSON object, always exit 0):
-    rw.py hook session-start  inject AGENTS.md within budget; catch up on missed commits; mention proposals
+    rw.py hook session-start  inject AGENTS.md within budget; catch up on missed commits
     rw.py hook session-area   load the memory index that matches the working directory
     rw.py hook prompt        UserPromptSubmit: commit an interrupted turn; periodic catch-up
     rw.py hook read           PostToolUse on Read: remember the hash of a memory file this session read
@@ -71,7 +71,7 @@ def main(argv):
     search = commands.add_parser("recall", help="search archived conversations")
     search.add_argument("query", nargs="+")
     search.add_argument("--limit", type=int, default=5)
-    check = commands.add_parser("lint", help="report problems, forgetting candidates and pending proposals")
+    check = commands.add_parser("lint", help="report problems, warnings and forgetting candidates")
     check.add_argument("--stale-days", type=int, default=90)
     check.add_argument("--unread-days", type=int, default=60)
     args = parser.parse_args(argv)

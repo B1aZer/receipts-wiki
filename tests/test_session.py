@@ -1,8 +1,9 @@
-"""Tests for rules injection, the append-only conversation archive, lesson candidates and notices."""
+"""Tests for rules and area-index injection, the append-only conversation archive, and unattended sessions."""
 import json
+import subprocess
 import unittest
 
-from test_hooks import HookTestCase, note
+from test_hooks import RW, HookTestCase, note
 
 BASE = [
     {"type": "ai-title", "aiTitle": "Quotes cache"},
@@ -73,25 +74,6 @@ class SessionTests(HookTestCase):
         self.hook("session-end", {"session_id": "s-last", "prompt_id": "t1", "transcript_path": "", "reason": "other"})
         self.assertIn("Change: fact.added memory/a.md", self.last_message())
 
-    def test_lesson_candidates_quote_the_user_and_touch_no_memory(self):
-        path = self.transcript(BASE)
-        self.end_turn(path)
-        files = list((self.home / "proposals").glob("*.md"))
-        self.assertEqual(len(files), 1)
-        text = files[0].read_text()
-        self.assertIn("From now on never cache quotes", text)
-        self.assertIn("session:s-end#L2", text)
-        self.assertNotIn("hunter2value", text)
-        self.assertEqual([p for p in (self.home / "memory").glob("*.md")], [])
-
-    def test_lesson_candidates_come_from_paragraphs_of_long_messages(self):
-        long_message = "From now on always run the linter before committing.\n\n" + "Background detail without any rule in it. " * 40
-        self.end_turn(self.transcript([{"type": "user", "timestamp": "2026-09-14T12:00:00Z",
-                                        "message": {"role": "user", "content": long_message}}]), session="s-long")
-        text = (self.home / "proposals" / "s-long.md").read_text()
-        self.assertIn("always run the linter before committing", text)
-        self.assertNotIn("Background detail", text)
-
     def test_summaries_and_task_notifications_are_not_the_users_words(self):
         records = [
             {"type": "user", "timestamp": "2026-09-14T09:00:00Z", "isCompactSummary": True, "isVisibleInTranscriptOnly": True,
@@ -106,10 +88,27 @@ class SessionTests(HookTestCase):
         self.assertIn("always ask before pushing", archive)
         self.assertNotIn("being continued", archive)
         self.assertNotIn("Agent report", archive)
-        proposals = (self.home / "proposals" / "s-flags.md").read_text()
-        self.assertIn("always ask before pushing", proposals)
-        self.assertNotIn("per turn", proposals)
-        self.assertNotIn("stage only", proposals)
+
+    def test_automated_sessions_keep_the_safety_checks_but_get_no_context(self):
+        (self.home / "AGENTS.md").write_text("# AGENTS.md\n\n- Never store secrets.\n")
+        self.git("add", "AGENTS.md")
+        self.git("commit", "-q", "-m", "rules")
+        (self.home / "memory" / "index-api.md").write_text("# api index\n\n- [cache](cache.md): cache TTL\n")
+        project = self.tmp / "api"
+        project.mkdir()
+        env = dict(self.env(), RECEIPTS_WIKI_ATTENDED="0")
+        def run(name, payload):
+            return subprocess.run(["python3", str(RW), "hook", name], input=json.dumps(payload),
+                                  capture_output=True, text=True, env=env, check=False)
+        (self.home / "memory" / "codex.md").write_text(note("codex-note", "written outside the hooks", "Body."))
+        self.assertEqual(run("session-start", {"session_id": "auto", "cwd": str(project)}).stdout.strip(), "")
+        self.assertIn("Change: external.change memory/codex.md", self.last_message())
+        self.assertEqual(run("session-area", {"session_id": "auto", "cwd": str(project)}).stdout.strip(), "")
+        run("stop", {"session_id": "auto", "prompt_id": "t1", "transcript_path": str(self.transcript(BASE)), "cwd": str(project)})
+        self.assertEqual(self.archives(), [])
+        denied = run("gate", {"session_id": "auto", "tool_name": "Write",
+                              "tool_input": {"file_path": str(self.home / "memory" / "db.md"), "content": "PGPASSWORD=hunter2value psql"}})
+        self.assertEqual(json.loads(denied.stdout)["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_session_start_loads_the_index_for_the_working_directory(self):
         (self.home / "memory" / "index-api.md").write_text("# api index\n\n- [cache](cache.md): cache TTL is 5 minutes\n")
@@ -143,15 +142,6 @@ class SessionTests(HookTestCase):
         context = self.hook("session-start", {"session_id": "s1"})["hookSpecificOutput"]["additionalContext"]
         self.assertLess(len(context.encode()), 9000)
         self.assertIn("shorten it", context)
-
-    def test_proposals_are_mentioned_at_session_start_and_once_a_day_in_long_sessions(self):
-        self.end_turn(self.transcript(BASE))
-        context = self.hook("session-start", {"session_id": "s2"})["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("lesson proposal", context)
-        self.assertIsNone(self.hook("prompt", {"session_id": "s2", "prompt_id": "p1"}))
-        first = self.hook("prompt", {"session_id": "long-running", "prompt_id": "p1"})
-        self.assertIn("lesson proposal", first["hookSpecificOutput"]["additionalContext"])
-        self.assertIsNone(self.hook("prompt", {"session_id": "long-running", "prompt_id": "p2"}))
 
 
 if __name__ == "__main__":

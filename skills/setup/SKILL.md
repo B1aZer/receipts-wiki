@@ -34,7 +34,7 @@ Summarise the findings, then list each proposed change on one line and ask the u
 ## 3. Write (only what was approved)
 
 1. `mkdir -p <home>/memory`. If `<home>` is not a git repository root, run `git -C <home> init -b main`.
-2. Make sure `<home>/.gitignore` contains `sessions/`, `proposals/` and `.state/`.
+2. Make sure `<home>/.gitignore` contains `sessions/` and `.state/`.
 3. If `<home>/AGENTS.md` is missing, copy `<plugin>/templates/AGENTS.md` there and ask the user to replace the example rules. If it exists, show how its memory rules differ from the template's `## Memory` section and apply only the changes the user approves.
 4. Merge into `~/.claude/settings.json`, keeping every other key: `"autoMemoryDirectory": "<home>/memory"` and the approved `cleanupPeriodDays`. Check the result with `python3 -m json.tool ~/.claude/settings.json`; a malformed settings file disables all of its settings.
 5. If migration was approved, copy each project's notes into `<home>/memory/`, skipping each project's `MEMORY.md`, and set `metadata.area` in every copied note to the approved area name. Leave the originals where they are. Do not commit yet.
