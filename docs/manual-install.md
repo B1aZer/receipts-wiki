@@ -17,7 +17,10 @@ mkdir -p ~/.agents/memory
 git -C ~/.agents init -b main
 printf 'sessions/\nproposals/\n.state/\n' >> ~/.agents/.gitignore
 [ -f ~/.agents/AGENTS.md ] || cp ~/src/receipts-wiki/templates/AGENTS.md ~/.agents/AGENTS.md
+python3 ~/src/receipts-wiki/scripts/rw.py install-git-hook
 ```
+
+The last line installs a git pre-commit check in `~/.agents`. It blocks commits that stage a secret value or a note without a name and description, whoever makes them.
 
 Edit `~/.agents/AGENTS.md` and replace the example rules with yours.
 

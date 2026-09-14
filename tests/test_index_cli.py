@@ -1,5 +1,6 @@
 """Tests for generated indexes and the record, history, recall and lint commands."""
 import json
+import os
 import subprocess
 import unittest
 
@@ -68,6 +69,57 @@ class IndexTests(HookTestCase):
         self.write_and_capture(rel, text.replace("  area: api\n", "  area: api\n  status: retired\n"), turn="t2")
         self.assertNotIn("project_ttl.md", (self.home / "memory" / "index-api.md").read_text())
         self.assertIn("Hand-written line.", (self.home / "memory" / "MEMORY.md").read_text())
+
+
+class GitHookTests(HookTestCase):
+    def env(self):
+        return dict(super().env(), RECEIPTS_WIKI_RW=str(RW))
+
+    def install(self):
+        return subprocess.run(["python3", str(RW), "install-git-hook"], capture_output=True, text=True, env=self.env(), check=False)
+
+    def run_git(self, *args):
+        return subprocess.run(["git", "-C", str(self.home), *args], capture_output=True, text=True, env=self.env(), check=False)
+
+    def test_install_is_repeatable_and_keeps_other_hooks(self):
+        self.assertEqual(self.install().returncode, 0)
+        hook = self.home / ".git" / "hooks" / "pre-commit"
+        self.assertTrue(os.access(hook, os.X_OK))
+        self.assertEqual(self.install().returncode, 0)
+        hook.write_text("#!/bin/sh\nexit 0\n")
+        result = self.install()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("not written by receipts-wiki", result.stdout)
+        self.assertEqual(hook.read_text(), "#!/bin/sh\nexit 0\n")
+
+    def test_hook_blocks_secrets_and_missing_frontmatter_in_commits_made_by_hand(self):
+        self.install()
+        leak = self.home / "memory" / "leak.md"
+        leak.write_text(note("leak", "db access", "PGPASSWORD=hunter2value psql"))
+        self.run_git("add", "memory/leak.md")
+        blocked = self.run_git("commit", "-m", "by hand")
+        self.assertNotEqual(blocked.returncode, 0)
+        self.assertIn("contains a secret value", blocked.stderr)
+        self.assertNotIn("hunter2value", blocked.stderr)
+        self.run_git("rm", "-q", "--cached", "memory/leak.md")
+        leak.unlink()
+        bare = self.home / "memory" / "bare.md"
+        bare.write_text("Just text.\n")
+        self.run_git("add", "memory/bare.md")
+        self.assertIn("has no frontmatter", self.run_git("commit", "-m", "by hand").stderr)
+        bare.write_text(note("bare", "now with frontmatter", "Body."))
+        self.run_git("add", "memory/bare.md")
+        self.assertEqual(self.run_git("commit", "-q", "-m", "by hand").returncode, 0)
+
+    def test_turn_commit_rejected_by_the_hook_is_reported(self):
+        self.install()
+        path = self.home / "memory" / "leak.md"
+        path.write_text(note("leak", "db access", "PGPASSWORD=hunter2value psql"))
+        self.hook("capture", self.payload("Write", path))
+        output = self.stop()
+        self.assertIn("receipts-wiki pre-commit blocked this commit", output["systemMessage"])
+        self.assertNotIn("hunter2value", output["systemMessage"])
+        self.assertEqual(self.commit_count(), 1)
 
 
 class CommandTests(HookTestCase):

@@ -14,6 +14,8 @@ Hooks (called by Claude Code; read the payload on stdin, print at most one JSON 
 Commands:
     rw.py build-index [--no-commit]
     rw.py record [--agent NAME]
+    rw.py precommit                 (run by the git pre-commit hook)
+    rw.py install-git-hook
     rw.py history <note> [--patch]
     rw.py recall <query...> [--limit N]
     rw.py lint [--stale-days N] [--unread-days N]
@@ -57,6 +59,8 @@ def main(argv):
     build.add_argument("--no-commit", action="store_true")
     rec = commands.add_parser("record", help="commit every uncommitted memory change as external.change")
     rec.add_argument("--agent", default="unknown")
+    commands.add_parser("precommit", help="git pre-commit check of staged memory files; exit 1 blocks the commit")
+    commands.add_parser("install-git-hook", help="install the pre-commit check in the memory repository")
     show = commands.add_parser("history", help="show the commits of one note")
     show.add_argument("note")
     show.add_argument("--patch", action="store_true")
@@ -73,6 +77,10 @@ def main(argv):
         return cli.build_index(home, commit=not args.no_commit)
     if args.command == "record":
         return cli.record(home, agent=args.agent)
+    if args.command == "precommit":
+        return cli.precommit(home)
+    if args.command == "install-git-hook":
+        return cli.install_git_hook(home, Path(__file__).resolve())
     if args.command == "history":
         return cli.history(home, args.note, patch=args.patch)
     if args.command == "recall":

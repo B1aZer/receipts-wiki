@@ -30,7 +30,7 @@ Status: 0.2.0-dev, in daily use by its author since 2026-09-13. First eval resul
 
 A turn that does not touch memory costs one short hook run and no commit. Nothing waits for the session to end, so a session can stay open for days across unrelated tasks.
 
-On request, `python3 scripts/rw.py` gives `history <note>` (every commit of one note), `recall <words>` (search the conversation archive), `lint` (problems, forgetting candidates and pending proposals), `build-index`, and `record --agent <name>` (commit changes made outside the hooks, such as an import). The `lint-review` skill walks through the lint report with you and changes only what you approve.
+On request, `python3 scripts/rw.py` gives `history <note>` (every commit of one note), `recall <words>` (search the conversation archive), `lint` (problems, forgetting candidates and pending proposals), `build-index`, `record --agent <name>` (commit changes made outside the hooks, such as an import), and `install-git-hook` (a git pre-commit check in the memory repository that blocks any commit staging a secret value or a note without a name and description, including commits made by other agents or by hand). The `lint-review` skill walks through the lint report with you and changes only what you approve.
 
 There is no network access, telemetry, vector database or background model call. It needs git and Python 3.9 or later.
 
@@ -71,7 +71,7 @@ Each rule in this method answers a failure that recent research on agent memory 
 
 ### Memories go out of date, and model-maintained memory misses it
 
-On STALE, a benchmark of memories later invalidated by new information, the best evaluated model scored 55.2% at noticing and acting on the change ([arXiv:2605.06527](https://arxiv.org/abs/2605.06527)). On LongMemEval's knowledge-update questions, swapping a frontier model's full context for memory it maintains itself dropped accuracy from 92% to 77% ([arXiv:2606.27472](https://arxiv.org/abs/2606.27472)). When an LLM keeps rewriting a memory bank, its usefulness rises and then falls, sometimes below having no memory at all; GPT-5.4 failed 54% of ARC-AGI problems it had solved without memory, while simply keeping the raw episodes stayed competitive. The authors conclude that raw episodes should be kept as first-class evidence ([arXiv:2605.12978](https://arxiv.org/abs/2605.12978)).
+On STALE, a benchmark of memories later invalidated by new information, the best evaluated model scored 55.2% at noticing and acting on the change ([arXiv:2605.06527](https://arxiv.org/abs/2605.06527)). On LongMemEval's knowledge-update questions, swapping a frontier model's full context for memory it maintains itself dropped accuracy from 92% to 77% ([arXiv:2606.27472](https://arxiv.org/abs/2606.27472)). When an LLM keeps rewriting a memory bank, its usefulness rises and then falls, sometimes below having no memory at all; even when consolidating from ground-truth solutions, GPT-5.4 failed 54% of a set of ARC-AGI problems it had previously solved without memory, while a control that simply kept the raw episodes stayed competitive. The authors conclude that raw episodes should be kept as first-class evidence ([arXiv:2605.12978](https://arxiv.org/abs/2605.12978)).
 
 receipts-wiki leaves raw records where they are and has memory cite them. A correction rewrites one small file and adds a `Supersedes` line with the date and the evidence, and git keeps the previous version. No model merges new material into existing pages.
 

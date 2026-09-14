@@ -13,7 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Catch-up: a turn whose end hook did not run is committed at the next prompt; stale logs of other sessions and changes made without hooks are committed at session start and at most every 10 minutes.
 - Conversation archive outside git, redacted and appended after each turn; up to two quoted lesson candidates per turn, never repeated.
 - Related-note hints only for a new note that closely matches an existing one.
-- Commands: `rw.py history`, `recall`, `lint` (including forgetting candidates), `build-index` and `record`.
+- Commands: `rw.py history`, `recall`, `lint` (including forgetting candidates), `build-index`, `record` and `install-git-hook`.
+- Git pre-commit check (`rw.py install-git-hook`): blocks any commit to the memory repository that stages a secret value or a note without a name and description, including commits made by other agents or by hand, and warns about files over budget. The write hooks only run inside Claude Code; letta-code checks its memory the same way at commit time.
 - Manual skills: `setup`, `recall`, `lint-review`.
 - `templates/WRITING.md`, `docs/COMMIT-SPEC.md`, `docs/PLAN.md`, `docs/manual-install.md`.
 - Tests (Python 3.9 and later), a no-network functional eval, model-behaviour checks (reset request, pending proposals, stale write), and the update-correctness eval with six scenarios. The eval runs sessions in a separate project directory without the user's own settings, checks that each taught fact was saved, and records time, model turns, output tokens and cost per session.

@@ -28,7 +28,8 @@ Summarise the findings, then list each proposed change on one line and ask the u
 
 - transcript retention (`cleanupPeriodDays`): keep the current value, 90 days, or another number. Claude Code deletes transcripts older than this; receipts-wiki keeps its own redacted archive of the conversation text.
 - copying existing per-project memory, and the area name for each project;
-- removing a duplicate memory-commit hook or CLAUDE.md import, if you found one.
+- removing a duplicate memory-commit hook or CLAUDE.md import, if you found one;
+- installing the git pre-commit check in `<home>`, which blocks commits that stage a secret value or a note without a name and description, including commits made by other agents or by hand.
 
 ## 3. Write (only what was approved)
 
@@ -38,7 +39,7 @@ Summarise the findings, then list each proposed change on one line and ask the u
 4. Merge into `~/.claude/settings.json`, keeping every other key: `"autoMemoryDirectory": "<home>/memory"` and the approved `cleanupPeriodDays`. Check the result with `python3 -m json.tool ~/.claude/settings.json`; a malformed settings file disables all of its settings.
 5. If migration was approved, copy each project's notes into `<home>/memory/`, skipping each project's `MEMORY.md`, and set `metadata.area` in every copied note to the approved area name. Leave the originals where they are. Do not commit yet.
 6. Run `python3 <plugin>/scripts/rw.py lint`. If it reports a secret value in any note, show the file names, propose replacing each value with the secret's name or location, and apply only approved edits. Nothing is committed until no secret remains.
-7. Run `python3 <plugin>/scripts/rw.py record --agent receipts-wiki-setup`. It commits the copied notes, `AGENTS.md`, `.gitignore` and the generated indexes in one commit.
+7. Run `python3 <plugin>/scripts/rw.py record --agent receipts-wiki-setup`. It commits the copied notes, `AGENTS.md`, `.gitignore` and the generated indexes in one commit. If the pre-commit check was approved, install it afterwards with `python3 <plugin>/scripts/rw.py install-git-hook`; it never replaces a hook it did not write.
 8. If Codex is installed and the user approved, create `~/.codex/AGENTS.md` as a symlink to `<home>/AGENTS.md`. If a file already exists there, show it and ask first.
 9. Remove the duplicate memory-commit hook or CLAUDE.md import if the user approved it.
 10. Run lint again and report the result. Tell the user to start a new session, because settings and hooks load at session start.

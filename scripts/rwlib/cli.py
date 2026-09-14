@@ -1,10 +1,79 @@
 """Maintenance commands. Only build-index writes; history, recall and lint read and report."""
 import json
 import re
+import sys
 from datetime import date
 from pathlib import Path
 
 from . import config, frontmatter, gitlog, indexer, secrets, state, turns
+
+HOOK_MARK = "receipts-wiki pre-commit hook"
+HOOK_SCRIPT = """#!/bin/sh
+# {mark}: checks staged memory files for secret values and missing frontmatter on every commit,
+# including commits made by other agents or by hand. Skip it once with `git commit --no-verify`.
+RW="${{RECEIPTS_WIKI_RW:-}}"
+if [ -z "$RW" ]; then
+  RW=$(ls -dt "$HOME"/.claude/plugins/cache/receipts-wiki/receipts-wiki/*/scripts/rw.py 2>/dev/null | head -n 1)
+fi
+[ -n "$RW" ] || RW="{fallback}"
+if [ ! -f "$RW" ]; then
+  echo "receipts-wiki pre-commit: plugin not found, commit not checked" >&2
+  exit 0
+fi
+RECEIPTS_WIKI_HOME="$(git rev-parse --show-toplevel)" exec python3 "$RW" precommit
+"""
+
+
+def precommit(home):
+    """Check the staged memory files of any commit. Exit status 1 blocks the commit."""
+    staged = gitlog.git(home, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "--", "memory", "AGENTS.md").stdout.split()
+    problems, warnings = [], []
+    for rel in staged:
+        if not rel.endswith(".md"):
+            continue
+        text = gitlog.git(home, "show", f":{rel}").stdout
+        label = secrets.find_secret(text)
+        if label:
+            problems.append(f"{rel} contains a secret value ({label}); store the secret's name or location instead")
+        if indexer.is_note(rel):
+            fm, _ = frontmatter.split(text)
+            if not fm:
+                problems.append(f"{rel} has no frontmatter (name, description, metadata.type)")
+            else:
+                missing = [key for key in ("name", "description") if not frontmatter.get(fm, key)]
+                if missing:
+                    problems.append(f"{rel} is missing {' and '.join(missing)} in its frontmatter")
+        elif rel == "AGENTS.md":
+            if len(text.encode("utf-8")) > config.AGENTS_BUDGET_BYTES:
+                warnings.append(f"AGENTS.md is over the {config.AGENTS_BUDGET_BYTES}-byte budget")
+        elif not indexer.within_budget(text):
+            warnings.append(f"{rel} is over the {indexer.MAX_LINES}-line / {indexer.MAX_BYTES}-byte budget")
+    for warning in warnings:
+        print(f"receipts-wiki pre-commit warning: {warning}", file=sys.stderr)
+    if problems:
+        print("receipts-wiki pre-commit blocked this commit: " + "; ".join(problems) + ".", file=sys.stderr)
+        return 1
+    return 0
+
+
+def install_git_hook(home, rw_path):
+    """Install the pre-commit check in the memory repository without replacing a hook written by someone else."""
+    if not gitlog.is_repo(home):
+        print(f"{home} is not the root of a git repository")
+        return 1
+    hooks_dir = Path(gitlog.git(home, "rev-parse", "--git-path", "hooks").stdout.strip())
+    if not hooks_dir.is_absolute():
+        hooks_dir = Path(home) / hooks_dir
+    hook = hooks_dir / "pre-commit"
+    if hook.exists() and HOOK_MARK not in hook.read_text(errors="replace"):
+        print(f"{hook} already exists and was not written by receipts-wiki, so it was not replaced. "
+              f"Add `RECEIPTS_WIKI_HOME=\"$(git rev-parse --show-toplevel)\" python3 {rw_path} precommit || exit 1` to it instead.")
+        return 1
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    hook.write_text(HOOK_SCRIPT.format(mark=HOOK_MARK, fallback=rw_path), encoding="utf-8")
+    hook.chmod(0o755)
+    print(f"installed {hook}")
+    return 0
 
 RELITIGATE = re.compile(r"re-?litigate|don.t revisit|do not revisit|don.t rebuild", re.I)
 LINK = re.compile(r"\]\(([^)#\s]+\.md)(?:#[^)]*)?\)")
