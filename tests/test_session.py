@@ -92,6 +92,25 @@ class SessionTests(HookTestCase):
         self.assertIn("always run the linter before committing", text)
         self.assertNotIn("Background detail", text)
 
+    def test_summaries_and_task_notifications_are_not_the_users_words(self):
+        records = [
+            {"type": "user", "timestamp": "2026-09-14T09:00:00Z", "isCompactSummary": True, "isVisibleInTranscriptOnly": True,
+             "message": {"role": "user", "content": "This session is being continued. Never commit per session, always per turn."}},
+            {"type": "user", "timestamp": "2026-09-14T09:01:00Z", "origin": {"kind": "task-notification"}, "promptSource": "system",
+             "message": {"role": "user", "content": "<task-notification>Agent report: always stage only this session's paths.</task-notification>"}},
+            {"type": "user", "timestamp": "2026-09-14T09:02:00Z",
+             "message": {"role": "user", "content": "From now on always ask before pushing."}},
+        ]
+        self.end_turn(self.transcript(records), session="s-flags")
+        archive = self.archives()[0].read_text()
+        self.assertIn("always ask before pushing", archive)
+        self.assertNotIn("being continued", archive)
+        self.assertNotIn("Agent report", archive)
+        proposals = (self.home / "proposals" / "s-flags.md").read_text()
+        self.assertIn("always ask before pushing", proposals)
+        self.assertNotIn("per turn", proposals)
+        self.assertNotIn("stage only", proposals)
+
     def test_session_start_injects_rules_within_budget(self):
         (self.home / "AGENTS.md").write_text("# AGENTS.md\n\n- Never store secrets.\n")
         context = self.hook("session-start", {"session_id": "s1", "source": "startup"})["hookSpecificOutput"]["additionalContext"]

@@ -24,6 +24,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Lint counted a project note as having no receipts unless it had a `Receipts:` line or frontmatter field, which flagged 141 of 198 pre-existing notes on the author's machine, most of which cite commits, files, transactions or query ids in their text. Lint now accepts receipts cited in the text.
 
+- Compaction summaries and background-agent reports are stored in Claude Code transcripts under the user role. The archive labelled them as the user's messages, and lesson candidates quoted them as the user's words; on the author's machine both candidates in the first proposal file came from these. Records marked `isCompactSummary`, `isVisibleInTranscriptOnly`, `promptSource: system` or `origin.kind: task-notification` are now skipped.
+
 ### Changed
 
 - Git is the memory log: one commit per agent turn that changed memory, instead of one per session. A session can stay open for days, and a session-end commit credited one session with other sessions' writes. Commits per write were tried during development and dropped: in a smoke run, two writing sessions produced 10 commits and roughly doubled the agent's turns.

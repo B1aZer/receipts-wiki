@@ -46,13 +46,21 @@ def read(path, start_line=0, start_offset=0):
             meta["branch"] = meta["branch"] or record.get("gitBranch")
             meta["cwd"] = meta["cwd"] or record.get("cwd")
             role = record.get("type")
-            if role not in ("user", "assistant") or record.get("isMeta") or record.get("isSidechain"):
+            if role not in ("user", "assistant") or record.get("isMeta") or record.get("isSidechain") or _not_written_by_user(record):
                 continue
             message = record.get("message") if isinstance(record.get("message"), dict) else {}
             text = _text(message.get("content"))
             if text.strip():
                 messages.append({"line": number, "role": role, "ts": record.get("timestamp"), "text": text})
     return meta, messages
+
+
+def _not_written_by_user(record):
+    """Records stored under the user role that nobody typed: compaction summaries, task notifications
+    (a background agent's report) and other prompts Claude Code marks as coming from the system."""
+    origin = record.get("origin") if isinstance(record.get("origin"), dict) else {}
+    return bool(record.get("isCompactSummary") or record.get("isVisibleInTranscriptOnly")
+                or record.get("promptSource") == "system" or origin.get("kind") == "task-notification")
 
 
 def _text(content):
