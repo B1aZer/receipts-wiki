@@ -1,0 +1,77 @@
+{
+  "version": 3,
+  "trail_notes": "'trail' lists the old value and the evidence for the change. After the ask session the runner checks whether each string is still in a memory note, and, for arms with a git history, whether it is in the note files or in that history. Added in version 3; version 3 also accepts \"isn't live\" for flag-rollback's premise question.",
+  "notes": "Synthetic scenarios written for receipts-wiki, modelled on STALE (arXiv:2605.06527) and Supersede (arXiv:2606.27472). Dates are absolute so the eval measures update handling, not date conversion. Question kinds: current (latest value), premise (question built on a stale premise), retained (a fact the correction must not change), history (what changed and why). 'seeded' lists strings that must be in a memory note after the teach session; when they are missing, the arm had nothing to correct and its result does not measure update handling. Version 2 (2026-09-14): ttl-explicit no longer cites a config commit, because plain auto memory declined to save a fact it could read from git, in both smoke runs.",
+  "scenarios": [
+    {
+      "id": "ttl-explicit",
+      "teach": "Please save this to your memory for future sessions: our quotes API response cache TTL is 60 minutes. The API team agreed on that value on 2026-08-01.",
+      "seeded": ["60"],
+      "trail": ["60", "q_8812"],
+      "correct": "Correction, please update your memory: on 2026-09-02 we cut the quotes API cache TTL from 60 to 5 minutes, because 14 of 200 sampled quotes were stale (query q_8812).",
+      "questions": [
+        {"kind": "current", "q": "What is the quotes API cache TTL now?", "expect_any": [ "5 min", "five min" ]},
+        {"kind": "premise", "q": "Given that the quotes cache TTL is still 60 minutes, what is the longest a quote can be stale?", "expect_any": [ "5 min", "five min" ]},
+        {"kind": "history", "q": "What was the TTL before the change, and why was it changed?", "expect_all": [ "60", "stale" ]}
+      ]
+    },
+    {
+      "id": "region-implicit",
+      "teach": "Save this to your memory: billing-service deploys to the eu-west-1 cluster, and its on-call owner is the payments team.",
+      "seeded": ["eu-west-1"],
+      "trail": ["eu-west-1", "2026-09-05"],
+      "correct": "Please note in your memory: on 2026-09-05 we shut down every workload in eu-west-1. All services now run only in us-east-1.",
+      "questions": [
+        {"kind": "current", "q": "Which region does billing-service deploy to now?", "expect_any": [ "us-east-1" ]},
+        {"kind": "retained", "q": "Which team is the on-call owner of billing-service?", "expect_any": [ "payments" ]},
+        {"kind": "premise", "q": "What should we check before the next billing-service deploy to eu-west-1?", "expect_any": [ "us-east-1", "shut down", "no longer", "not deploy" ]}
+      ]
+    },
+    {
+      "id": "rate-limit-partial",
+      "teach": "Remember this: the partner API rate limit is 100 requests per minute, and our client retries failed calls 3 times.",
+      "seeded": ["100"],
+      "trail": ["100", "PARTNER-812"],
+      "correct": "Update your memory: on 2026-09-03 the partner raised our API rate limit to 500 requests per minute (ticket PARTNER-812).",
+      "questions": [
+        {"kind": "current", "q": "What is the partner API rate limit?", "expect_any": [ "500" ]},
+        {"kind": "retained", "q": "How many times does our client retry failed calls?", "expect_any": [ "3", "three" ]},
+        {"kind": "history", "q": "What was the rate limit before, and what changed it?", "expect_all": [ "100", "812" ]}
+      ]
+    },
+    {
+      "id": "rule-revoked",
+      "teach": "Save this as a rule for this project in your memory: always use pnpm to install dependencies.",
+      "seeded": ["pnpm"],
+      "trail": ["pnpm", "2026-09-04"],
+      "correct": "Rule change, please update your memory: on 2026-09-04 this project switched to bun. Do not use pnpm anymore; use bun install.",
+      "questions": [
+        {"kind": "current", "q": "Which command installs dependencies in this project?", "expect_any": [ "bun" ]},
+        {"kind": "premise", "q": "Which pnpm flags should I pass when installing dependencies here?", "expect_any": [ "bun", "not use pnpm", "not to use pnpm", "no longer", "don't use pnpm", "do not use pnpm" ]}
+      ]
+    },
+    {
+      "id": "owner-handover",
+      "teach": "Save to your memory: Alice owns billing-service, so ask her before any schema change.",
+      "seeded": ["alice"],
+      "trail": ["alice", "2026-09-01"],
+      "correct": "Memory update: Bob took over ownership of billing-service from Alice on 2026-09-01.",
+      "questions": [
+        {"kind": "current", "q": "Who should approve a billing-service schema change?", "expect_any": [ "bob" ]},
+        {"kind": "history", "q": "Who owned billing-service before the current owner, and on what date did ownership change?", "expect_all": [ "alice", "2026-09-01" ]}
+      ]
+    },
+    {
+      "id": "flag-rollback",
+      "teach": "Remember this: the new-checkout feature flag has been enabled in production since 2026-08-20.",
+      "seeded": ["new-checkout"],
+      "trail": ["2026-08-20", "INC-431"],
+      "correct": "Correction for your memory: new-checkout was rolled back and has been disabled in production since 2026-09-06 (incident INC-431).",
+      "questions": [
+        {"kind": "current", "q": "Is the new-checkout flag enabled in production?", "expect_any": [ "disabled", "off", "not enabled", "rolled back" ]},
+        {"kind": "premise", "q": "Since new-checkout is live in production, which metrics should we watch for it?", "expect_any": [ "disabled", "rolled back", "not live", "isn't live", "is not live", "no longer live", "off" ]},
+        {"kind": "history", "q": "Why is the new-checkout flag in its current state?", "expect_any": [ "431", "rolled back" ]}
+      ]
+    }
+  ]
+}

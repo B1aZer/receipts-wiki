@@ -1,0 +1,38 @@
+# Changelog
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
+
+## [0.2.0] - unreleased
+
+### Added
+
+- Claude Code plugin (`.claude-plugin/`, `hooks/hooks.json`) with hooks at session start (rules injection within an 8 KB budget), prompt submit, read, before and after writes, turn end and session end.
+- Write gate: refuses memory writes when the file changed after the session read it, or when the text contains a secret value, injected system text or a relative date; refuses edits to generated index files.
+- Turn commits: one git commit per agent turn that changed memory, in the format of `docs/COMMIT-SPEC.md` v0.2 (Contextual Commits reasoning lines, one `Change` trailer per file, `Session` and `Turn`), with the regenerated area indexes in the same commit. Only the session's own files are committed. The hook prints nothing and never blocks the stop.
+- History guard: a hook on git commands (filtered with `if: "Bash(git *)"`, so other shell commands do not start it) refuses `reset`, `rebase`, `commit --amend`, forced push, `filter-branch`, `filter-repo`, `update-ref`, `reflog expire`, `gc --prune` and forced branch changes in the memory repository. Added after a behaviour check in which an agent ran a requested `git reset --hard` despite the AGENTS.md rule.
+- Catch-up: a turn whose end hook did not run is committed at the next prompt; stale logs of other sessions and changes made without hooks are committed at session start and at most every 10 minutes.
+- Conversation archive outside git, redacted and appended after each turn; up to two quoted lesson candidates per turn, never repeated.
+- Related-note hints only for a new note that closely matches an existing one.
+- Commands: `rw.py history`, `recall`, `lint` (including forgetting candidates), `build-index` and `record`.
+- Manual skills: `setup`, `recall`, `lint-review`.
+- `templates/WRITING.md`, `docs/COMMIT-SPEC.md`, `docs/PLAN.md`, `docs/manual-install.md`.
+- Tests (Python 3.9 and later), a no-network functional eval, model-behaviour checks (reset request, pending proposals, stale write), and the update-correctness eval with six scenarios. The eval runs sessions in a separate project directory without the user's own settings, checks that each taught fact was saved, and records time, model turns, output tokens and cost per session.
+
+### Changed
+
+- Git is the memory log: one commit per agent turn that changed memory, instead of one per session. A session can stay open for days, and a session-end commit credited one session with other sessions' writes. Commits per write were tried during development and dropped: in a smoke run, two writing sessions produced 10 commits and roughly doubled the agent's turns.
+- `templates/AGENTS.md` is reduced to guardrails and a memory section that holds the short writing rules, including the exact `Supersedes (YYYY-MM-DD)` syntax. `templates/WRITING.md` is the long form for people; agents are not sent to it, because the plugin folder is outside a session's directories and reading it needs approval.
+- Setup creates `memory/MEMORY.md` with an empty generated block, so an agent can see an empty memory with one read.
+- The generated block in `MEMORY.md` lists every active note while `MEMORY.md` stays within 150 lines and 17 KB, and lists area indexes only past that. In the first full eval run, agents whose `MEMORY.md` listed only areas opened an index in every session and tried to list and search the memory folder, which Claude Code blocked 13 times.
+- AGENTS.md memory rules: find notes through `MEMORY.md` and the indexes instead of shell commands; retire a note with `metadata.status: retired` instead of deleting it; never change memory files with shell commands. In the same run both arms deleted superseded notes with `rm`.
+- The update-correctness eval reports a trail score: whether the old value and the evidence for the change are still in memory notes, or in git history.
+- README "Why" cites research on agent memory instead of one user's setup; IDEA.md and EXAMPLES.md describe the plugin's behaviour.
+
+## [0.1.0] - 2026-09-13
+
+### Added
+
+- `IDEA.md`, the idea file.
+- `templates/AGENTS.md`, the rules template with the memory method.
+- `claude-code/`: settings snippet, `CLAUDE.md` import, and the `commit-memory.sh` SessionEnd hook.
+- `EXAMPLES.md`, six worked examples.

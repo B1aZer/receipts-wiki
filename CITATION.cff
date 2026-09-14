@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use or adapt this method, please cite it as below."
+title: "receipts-wiki: a memory method for AI agents' own work"
+authors:
+  - family-names: Branitskii
+    given-names: Dmitrii
+version: 0.1.0
+date-released: 2026-09-13
+url: "https://github.com/B1aZer/receipts-wiki"
+repository-code: "https://github.com/B1aZer/receipts-wiki"
+license:
+  - MIT
+  - CC-BY-4.0
+keywords:
+  - ai-agents
+  - agent-memory
+  - agents-md
+  - claude-code
+  - llm-wiki

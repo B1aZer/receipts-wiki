@@ -1,0 +1,18 @@
+{
+  "name": "receipts-wiki",
+  "description": "receipts-wiki: git-versioned, receipt-backed memory for AI agents, built on Claude Code's auto memory.",
+  "owner": {
+    "name": "Dmitrii Branitskii",
+    "url": "https://github.com/B1aZer"
+  },
+  "plugins": [
+    {
+      "name": "receipts-wiki",
+      "source": "./",
+      "description": "Git-versioned, receipt-backed memory for AI agents, built on Claude Code's auto memory.",
+      "license": "MIT",
+      "homepage": "https://github.com/B1aZer/receipts-wiki",
+      "repository": "https://github.com/B1aZer/receipts-wiki"
+    }
+  ]
+}
