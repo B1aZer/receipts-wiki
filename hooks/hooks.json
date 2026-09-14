@@ -45,6 +45,12 @@
             "command": "python3",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "history"],
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "sh",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/shell-guard.sh"],
+            "timeout": 10
           }
         ]
       }

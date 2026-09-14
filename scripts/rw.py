@@ -7,6 +7,7 @@ Hooks (called by Claude Code; read the payload on stdin, print at most one JSON 
     rw.py hook read           PostToolUse on Read: remember the hash of a memory file this session read
     rw.py hook gate           PreToolUse on Write/Edit: block stale, secret-bearing or malformed memory writes
     rw.py hook history        PreToolUse on Bash: block git commands that rewrite the memory repository's history
+    rw.py hook shell          PreToolUse on Bash: block shell commands that write into the memory home
     rw.py hook capture        PostToolUse on Write/Edit: note the file in this session's log
     rw.py hook stop           Stop and StopFailure: one commit for the turn, indexes, conversation archive
     rw.py hook session-end    same as stop, for the last turn
@@ -35,6 +36,7 @@ HOOKS = {
     "read": hooks.hook_read,
     "gate": hooks.hook_gate,
     "history": hooks.hook_history,
+    "shell": hooks.hook_shell,
     "capture": hooks.hook_capture,
     "stop": hooks.hook_stop,
     "session-end": hooks.hook_session_end,

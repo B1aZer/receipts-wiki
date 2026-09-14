@@ -61,6 +61,7 @@ Each action line is capped at 200 characters.
 | `Transcript` | when known | transcript path; the file may be gone after the retention period |
 | `Receipts` | when present | comma-separated values from frontmatter `receipts` or `Receipts:` lines of the changed notes |
 | `Recovered` | when true | `true` when the commit was made after the turn had ended, because its end hook did not run |
+| `Shell-write` | when present | a file in this commit that changed during the turn without the Write or Edit tool, for example through a shell command; one trailer per file. The credit to the session is inferred from the file's modification time. |
 
 ## Events
 
@@ -83,7 +84,7 @@ Each file gets one event, the net change of the whole turn against `HEAD`: a not
 
 | Moment | What is committed | Credited to |
 |---|---|---|
-| End of a turn (`Stop`, `StopFailure`; `SessionEnd` for the last turn) | files this session wrote during the turn, and the indexes regenerated from them | the session and turn |
+| End of a turn (`Stop`, `StopFailure`; `SessionEnd` for the last turn) | files this session wrote during the turn, memory files changed through other means (such as a shell command) after the turn's prompt when no other session was mid-turn, and the indexes regenerated from them | the session and turn |
 | The session's next prompt, or its next start | a turn whose end hook did not run | that session and turn, `Recovered: true` |
 | Session start, and a prompt at most every 10 minutes | the logs of other sessions with uncommitted writes and no activity for 60 minutes | those sessions, `Recovered: true` |
 | Same | memory changes that no session's log claims | `Agent: unknown`, `external.change` |
@@ -93,6 +94,7 @@ Each file gets one event, the net change of the whole turn against `HEAD`: a not
 
 - One commit per turn that changed memory. No change, no commit.
 - A commit contains only the files this session wrote, plus the generated indexes. Files written by other sessions that are still active stay uncommitted until their own turns end. Indexes are built from committed notes and this turn's notes, so another session's unfinished note never appears in them.
+- A commit that would include a secret value is refused, however the file was written, and reported like any other failed commit.
 - The end-of-turn hook never asks the agent to continue, and does nothing when `stop_hook_active` is set. It prints nothing unless a commit fails or has to wait; then it shows the user a message with git's error at the end of every turn until the commit succeeds. Session start reports failed catch-up commits and memory files left uncommitted for more than 30 minutes, and lint lists both as problems.
 - Commits wait while a merge, rebase, cherry-pick or revert is in progress in the memory repository, and say so.
 - History is never amended, rebased, reset or force-pushed. A correction is a new commit. In Claude Code a hook refuses git commands that would rewrite the memory repository's history; `git revert` stays allowed because it adds a commit.

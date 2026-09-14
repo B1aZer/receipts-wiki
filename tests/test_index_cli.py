@@ -117,7 +117,7 @@ class GitHookTests(HookTestCase):
         path.write_text(note("leak", "db access", "PGPASSWORD=hunter2value psql"))
         self.hook("capture", self.payload("Write", path))
         output = self.stop()
-        self.assertIn("receipts-wiki pre-commit blocked this commit", output["systemMessage"])
+        self.assertIn("contains a secret value", output["systemMessage"])
         self.assertNotIn("hunter2value", output["systemMessage"])
         self.assertEqual(self.commit_count(), 1)
 

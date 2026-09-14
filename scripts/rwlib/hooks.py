@@ -9,9 +9,10 @@ import os
 import re
 import shlex
 import sys
+import time
 from pathlib import Path
 
-from . import archive, config, gitlog, indexer, related, secrets, state, turns
+from . import archive, config, frontmatter, gitlog, indexer, related, secrets, state, turns
 
 REVISION = re.compile(r"^(HEAD|ORIG_HEAD|FETCH_HEAD|@)([~^]\d*)*$|^[0-9a-f]{7,40}([~^]\d*)*$")
 RESET_MODES = {"--hard", "--soft", "--mixed", "--merge", "--keep"}
@@ -177,6 +178,71 @@ def _git_calls(command, cwd):
             segment = []
 
 
+SCRIPT_TOOL = re.compile(r"\b(python3?|node|ruby|perl|deno|bun|php)\b")
+SCRIPT_WRITE = re.compile(r"open\([^)]*['\"][wax]\+?b?['\"]|\bmode\s*=\s*['\"][wax]|write_text|write_bytes|writeFileSync|writeFile|appendFile|"
+                          r"shutil\.|os\.(remove|rename|replace|unlink)|\.unlink\(|File\.write|fs\.rm")
+
+
+def _memory_markers(home):
+    markers = {str(home)}
+    raw = os.environ.get("RECEIPTS_WIKI_HOME")
+    if raw:
+        markers.add(raw.rstrip("/"))
+    if str(home).startswith("/private/"):
+        markers.add(str(home)[len("/private"):])
+    try:
+        inside = home.relative_to(Path.home())
+        markers |= {f"~/{inside}", f"$HOME/{inside}", f"${{HOME}}/{inside}"}
+    except ValueError:
+        pass
+    return markers
+
+
+def _shell_write_reason(command, home):
+    """How a shell command writes into the memory home, or None. Pattern matching only: a path held in a
+    variable is not seen."""
+    markers = _memory_markers(home)
+    inside = lambda text: any(marker in text for marker in markers)
+    if not inside(command):
+        return None
+    for match in re.finditer(r"(?<![<0-9&])>{1,2}\|?\s*['\"]?([^\s'\";|&()]+)", command):
+        if inside(match.group(1)):
+            return "redirects output into a file"
+    for match in re.finditer(r"\btee\b([^;|&\n]*)", command):
+        if inside(match.group(1)):
+            return "writes a file with tee"
+    for segment in re.split(r"&&|\|\||[;|\n]", command):
+        words = [w for w in segment.strip().split() if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w)]
+        if not words or not inside(segment):
+            continue
+        tool = os.path.basename(words[0])
+        if tool in ("sed", "perl") and re.search(r"\s-[a-zA-Z]*i", segment):
+            return "edits a file in place"
+        if tool in ("rm", "mv", "touch", "truncate", "unlink", "rmdir"):
+            return f"runs {tool} on it"
+        if tool in ("cp", "rsync", "install", "ln") and inside(words[-1]):
+            return f"copies into it with {tool}"
+    if SCRIPT_TOOL.search(command) and SCRIPT_WRITE.search(command):
+        return "runs a script that writes files"
+    return None
+
+
+def hook_shell(payload):
+    """PreToolUse on Bash: refuse shell commands that write into the memory home, and point to Write or Edit."""
+    command = _tool_input(payload).get("command") or ""
+    home = config.home()
+    how = _shell_write_reason(command, home)
+    if how:
+        _emit({"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": (
+                f"receipts-wiki blocked this shell command: it {how} in the memory home {home}. Change memory files with "
+                "the Write or Edit tool, so the write gate checks the change and it is credited to this turn. "
+                "Reading memory with shell commands is fine."),
+        }})
+
+
 def hook_history(payload):
     """PreToolUse on Bash: refuse git commands that rewrite the memory repository's history."""
     command = _tool_input(payload).get("command") or ""
@@ -237,9 +303,13 @@ def _end_turn(payload):
         return
     session = payload.get("session_id")
     data = state.load(session)
+    shell_written = turns.credit_shell_writes(home, session, data, payload.get("prompt_id"))
+    if shell_written:
+        data.setdefault("agent_notices", []).append(_shell_write_notice(home, shell_written))
     if data["pending"]:
         turns.flush_session(home, session, data, turn=payload.get("prompt_id"),
                             cwd=payload.get("cwd"), transcript=payload.get("transcript_path"))
+    data["turn_stopped"] = time.time()
     transcript_path = payload.get("transcript_path")
     if transcript_path:
         messages = archive.append(home, session, transcript_path, payload.get("cwd"), data)
@@ -248,6 +318,34 @@ def _end_turn(payload):
     failure = data.get("commit_failure")
     if failure and data.get("pending"):
         _emit({"systemMessage": _failure_message(home, len(data["pending"]), failure)})
+
+
+def _shell_write_notice(home, rels):
+    """What the write gate would have said about files changed through the shell during the last turn."""
+    issues = []
+    for rel in rels:
+        try:
+            text = (Path(home) / rel).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        old = gitlog.head_content(home, rel) or ""
+        added = "\n".join(line for line in text.splitlines() if line not in set(old.splitlines()))
+        label = secrets.find_secret(text)
+        if label:
+            issues.append(f"{rel} contains a secret value ({label})")
+        tag = secrets.find_injected_tag(added)
+        if tag:
+            issues.append(f"{rel} contains injected context (<{tag}>)")
+        phrase = secrets.find_relative_date(added)
+        if phrase:
+            issues.append(f"{rel} uses a relative date ({phrase!r})")
+        if indexer.is_note(rel):
+            fm, _ = frontmatter.split(text)
+            if not fm or not frontmatter.get(fm, "name") or not frontmatter.get(fm, "description"):
+                issues.append(f"{rel} is missing frontmatter name or description")
+    found = f" The write gate would have flagged: {'; '.join(issues)}." if issues else ""
+    return (f"receipts-wiki: in your last turn you changed {', '.join(rels)} with a shell command instead of Write or Edit. "
+            f"It was recorded for that turn, but the write gate did not check it.{found} Use Write or Edit for memory files.")
 
 
 def _failure_message(home, count, failure):
@@ -281,6 +379,9 @@ def hook_prompt(payload):
         return
     session = payload.get("session_id")
     data = state.load(session)
+    if payload.get("prompt_id") != data.get("turn_id") or not data.get("turn_started"):
+        data["turn_id"] = payload.get("prompt_id")
+        data["turn_started"] = time.time()
     if data["pending"]:
         turns.flush_session(home, session, data, cwd=payload.get("cwd"), transcript=payload.get("transcript_path"),
                             recovered=True, skip_turn=payload.get("prompt_id"))
@@ -288,14 +389,14 @@ def hook_prompt(payload):
         state.save(session, data)
         turns.sweep(home, current_session=session)
         data["swept_at"] = state.now_iso()
-    note = None
+    notes = data.pop("agent_notices", None) or []
     waiting = _proposals_waiting(home)
     if waiting and state.seconds_since(data.get("proposals_noticed_at")) > config.PROPOSAL_NOTICE_SECONDS:
-        note = f"{len(waiting)} lesson proposal file(s) are waiting in {home / 'proposals'}. Mention this to the user once; they can review them with the receipts-wiki lint-review skill."
+        notes.append(f"{len(waiting)} lesson proposal file(s) are waiting in {home / 'proposals'}. Mention this to the user once; they can review them with the receipts-wiki lint-review skill.")
         data["proposals_noticed_at"] = state.now_iso()
     state.save(session, data)
-    if note:
-        _emit(_context("UserPromptSubmit", note))
+    if notes:
+        _emit(_context("UserPromptSubmit", "\n\n".join(notes)))
 
 
 def hook_session_start(payload):

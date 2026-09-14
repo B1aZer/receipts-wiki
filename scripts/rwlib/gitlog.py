@@ -206,6 +206,7 @@ def turn_message(changes, extra_paths, agent, session=None, turn=None, cwd=None,
 
     trailers = [("Change", f"{change['event']} {change['rel']}") for change in changes]
     trailers += [("Change", f"index.rebuilt {path}") for path in extra_paths]
+    trailers += [("Shell-write", change["rel"]) for change in changes if change.get("via") == "shell"]
     trailers.append(("Agent", agent))
     for key, value in (("Session", session), ("Turn", turn), ("Cwd", cwd), ("Transcript", transcript)):
         if value:

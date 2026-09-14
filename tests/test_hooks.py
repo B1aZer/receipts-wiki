@@ -189,6 +189,83 @@ class HistoryGuardTests(HookTestCase):
         self.assertIsNone(self.bash("git reset --hard HEAD~1", cwd=str(other)))
 
 
+class ShellWriteTests(HookTestCase):
+    def shell(self, command):
+        return self.hook("shell", {"session_id": "s1", "cwd": "/work/api", "tool_name": "Bash", "tool_input": {"command": command}})
+
+    def prompt(self, session="s1", turn="t1"):
+        return self.hook("prompt", {"session_id": session, "prompt_id": turn, "cwd": "/work/api"})
+
+    def test_blocks_shell_writes_into_memory(self):
+        memory = f"{self.home}/memory"
+        for command in (f"echo 'x' >> {memory}/a.md",
+                        f"python3 - <<'PY'\nopen('{memory}/MEMORY.md', 'w').write('x')\nPY",
+                        f"sed -i '' 's/a/b/' {memory}/a.md",
+                        f"rm {memory}/a.md",
+                        f"cp /tmp/draft.md {memory}/a.md",
+                        f"cat /tmp/draft.md | tee {memory}/a.md",
+                        f"MEM={memory}/a.md; printf 'x' > {memory}/b.md"):
+            output = self.shell(command)
+            self.assertIsNotNone(output, command)
+            self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+            self.assertIn("Write or Edit tool", output["hookSpecificOutput"]["permissionDecisionReason"])
+
+    def test_guard_script_starts_python_only_for_commands_that_mention_memory(self):
+        guard = RW.parent / "shell-guard.sh"
+        def run(command):
+            payload = json.dumps({"session_id": "s1", "tool_name": "Bash", "tool_input": {"command": command}})
+            return subprocess.run(["sh", str(guard)], input=payload, capture_output=True, text=True, env=self.env(), check=False)
+        quiet = run("ls -la /tmp")
+        self.assertEqual((quiet.returncode, quiet.stdout), (0, ""))
+        denied = run(f"python3 - <<'PY'\nopen('{self.home}/memory/MEMORY.md', 'w').write('x')\nPY")
+        self.assertEqual(denied.returncode, 0)
+        self.assertEqual(json.loads(denied.stdout)["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_allows_reading_memory_and_unrelated_commands(self):
+        memory = f"{self.home}/memory"
+        for command in (f"cat {memory}/a.md", f"grep -rn cache {memory}", f"git -C {self.home} log --oneline",
+                        f"cat {memory}/a.md > /tmp/copy.md", f"RECEIPTS_WIKI_HOME={self.home} python3 rw.py lint",
+                        "echo hi > /tmp/x.md", f"python3 -c \"print(open('{memory}/a.md').read())\""):
+            self.assertIsNone(self.shell(command), command)
+
+    def test_shell_write_during_a_turn_is_credited_to_it(self):
+        self.prompt(turn="t1")
+        (self.home / "memory" / "a.md").write_text(note("a-note", "written by a shell command", "Body, fixed yesterday."))
+        self.assertIsNone(self.stop(turn="t1"))
+        message = self.last_message()
+        for line in ("Change: fact.added memory/a.md", "Shell-write: memory/a.md", "Session: s1", "Turn: t1"):
+            self.assertIn(line, message)
+        context = self.prompt(turn="t2")["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("with a shell command instead of Write or Edit", context)
+        self.assertIn("relative date", context)
+        self.assertIsNone(self.prompt(turn="t2"))
+
+    def test_file_changed_before_the_turn_is_left_to_catch_up(self):
+        path = self.home / "memory" / "old.md"
+        path.write_text(note("old-note", "changed before this turn", "Body."))
+        old = time.time() - 600
+        os.utime(path, (old, old))
+        self.prompt(turn="t1")
+        self.stop(turn="t1")
+        self.assertNotIn("Shell-write", self.git("log", "--format=%B").stdout)
+        self.assertIn("Change: external.change memory/old.md", self.last_message())
+
+    def test_another_session_mid_turn_makes_credit_ambiguous(self):
+        self.prompt(session="s2", turn="u1")
+        self.prompt(session="s1", turn="t1")
+        (self.home / "memory" / "a.md").write_text(note("a-note", "who wrote this", "Body."))
+        self.stop(session="s1", turn="t1")
+        self.assertEqual(self.commit_count(), 1)
+
+    def test_shell_written_secret_is_not_committed(self):
+        self.prompt(turn="t1")
+        (self.home / "memory" / "db.md").write_text(note("db", "database access", "PGPASSWORD=hunter2value psql"))
+        output = self.stop(turn="t1")
+        self.assertEqual(self.commit_count(), 1)
+        self.assertIn("contains a secret value", output["systemMessage"])
+        self.assertNotIn("hunter2value", output["systemMessage"])
+
+
 class TurnTests(HookTestCase):
     def test_capture_alone_does_not_commit_or_talk(self):
         output = self.write("memory/a.md", note("a", "cache", "Body."))

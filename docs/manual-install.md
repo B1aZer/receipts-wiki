@@ -41,7 +41,7 @@ Merge this into `~/.claude/settings.json`, keeping your other keys. If you alrea
     ],
     "PreToolUse": [
       {"matcher": "Write|Edit|MultiEdit", "hooks": [{"type": "command", "command": "python3 ~/src/receipts-wiki/scripts/rw.py hook gate", "timeout": 10}]},
-      {"matcher": "Bash", "hooks": [{"type": "command", "if": "Bash(git *)", "command": "python3 ~/src/receipts-wiki/scripts/rw.py hook history", "timeout": 10}]}
+      {"matcher": "Bash", "hooks": [{"type": "command", "if": "Bash(git *)", "command": "python3 ~/src/receipts-wiki/scripts/rw.py hook history", "timeout": 10}, {"type": "command", "command": "sh ~/src/receipts-wiki/scripts/shell-guard.sh", "timeout": 10}]}
     ],
     "PostToolUse": [
       {"matcher": "Read", "hooks": [{"type": "command", "command": "python3 ~/src/receipts-wiki/scripts/rw.py hook read", "timeout": 10}]},

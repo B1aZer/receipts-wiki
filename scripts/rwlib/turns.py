@@ -10,7 +10,7 @@ import os
 import time
 from pathlib import Path
 
-from . import config, gitlog, indexer, state
+from . import config, gitlog, indexer, secrets, state
 
 IN_PROGRESS = "a merge, rebase, cherry-pick or revert is in progress in the memory repository; finish or abort it"
 STALE_UNCOMMITTED_MINUTES = 30
@@ -25,6 +25,50 @@ def _note_failure(data, detail):
     previous = data.get("commit_failure") or {}
     data["commit_failure"] = {"since": previous.get("since") or state.now_iso(), "at": state.now_iso(),
                               "count": int(previous.get("count") or 0) + 1, "detail": short_error(detail)}
+
+
+def turn_running(data):
+    """The session has started a turn that has not reached its end hook within the last hour."""
+    started = data.get("turn_started")
+    if not started:
+        return False
+    stopped = data.get("turn_stopped") or 0
+    return stopped < started and time.time() - started < config.STALE_JOURNAL_MINUTES * 60
+
+
+def credit_shell_writes(home, session, data, turn):
+    """Memory files changed during this turn without Write or Edit, for example by a shell command.
+
+    They join this turn's pending writes, marked `via: shell`. When another session is in the middle of a
+    turn, nobody can tell who changed the file, so nothing is credited and the catch-up records it instead.
+    """
+    started = data.get("turn_started")
+    if not started or not gitlog.is_repo(home):
+        return []
+    home = Path(home)
+    candidates = [home / "AGENTS.md"]
+    try:
+        candidates += [Path(entry.path) for entry in os.scandir(home / "memory") if entry.name.endswith(".md")]
+    except OSError:
+        pass
+    recent = []
+    for path in candidates:
+        try:
+            if path.stat().st_mtime >= started - 1:
+                recent.append("AGENTS.md" if path.parent == home else f"memory/{path.name}")
+        except OSError:
+            continue
+    if not recent:
+        return []
+    if any(turn_running(other) for other in state.all_sessions() if other.get("session") != session):
+        return []
+    dirty, others = set(gitlog.dirty_paths(home)), claims(exclude=session)
+    credited = []
+    for rel in recent:
+        if rel in dirty and rel not in data["pending"] and rel not in others and not indexer.is_generated_index(home, rel):
+            data["pending"][rel] = {"turn": turn, "via": "shell", "at": state.now_iso()}
+            credited.append(rel)
+    return credited
 
 
 def stale_uncommitted(home, minutes=STALE_UNCOMMITTED_MINUTES):
@@ -81,6 +125,10 @@ def claims(exclude=None):
 def record(home, changes, agent, session=None, turn=None, cwd=None, transcript=None, recovered=False, claimed=frozenset()):
     """Commit these changes and the index files they affect. Returns (committed, detail, index paths)."""
     rels = [change["rel"] for change in changes]
+    for change in changes:
+        label = secrets.find_secret(change.get("new") or "")
+        if label:
+            return False, f"{change['rel']} contains a secret value ({label}); replace it with the secret's name or location", []
     note_rels = {rel for rel in rels if indexer.is_note(rel)}
     # A missing MEMORY.md is created too, so an agent can see an empty memory with one read.
     if note_rels or not (Path(home) / "memory" / "MEMORY.md").exists():
@@ -111,6 +159,9 @@ def flush_session(home, session, data, turn=None, cwd=None, transcript=None, rec
     cwd = cwd or next((e.get("cwd") for e in entries if e.get("cwd")), None)
     transcript = transcript or next((e.get("transcript") for e in entries if e.get("transcript")), None)
     changes = changes_for(home, selected)
+    for change in changes:
+        if (selected.get(change["rel"]) or {}).get("via") == "shell":
+            change["via"] = "shell"
     claimed = claims(exclude=session) | (set(pending) - set(selected))
     committed, detail, extra = record(home, changes, "claude-code", session, turn, cwd, transcript, recovered, claimed)
     if committed or detail == "no change":
