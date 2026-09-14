@@ -89,7 +89,7 @@ def hook_gate(payload):
     added = _added_lines(path, proposed)
 
     reasons = []
-    if indexer.is_index_file(rel):
+    if indexer.is_index_file(rel) and (not path.exists() or indexer.is_generated_index(config.home(), rel)):
         reasons.append("index files are generated from note frontmatter; change the note's area, name or description instead")
     secret = secrets.find_secret(proposed)
     if secret:
@@ -203,9 +203,9 @@ def hook_history(payload):
 
 def hook_capture(payload):
     rel = config.tracked(_tool_input(payload).get("file_path"))
-    if not rel or indexer.is_index_file(rel):
-        return
     home = config.home()
+    if not rel or indexer.is_generated_index(home, rel):
+        return
     path = home / rel
     if not path.exists():
         return
@@ -224,7 +224,7 @@ def hook_capture(payload):
     state.save(session, data)
     state.touch_read(rel)
 
-    if is_new and rel.startswith("memory/") and not indexer.is_generated(rel):
+    if is_new and indexer.is_note(rel):
         strong, _ = related.candidates(home, rel, path.read_text(encoding="utf-8", errors="replace"))
         if strong:
             _emit(_context("PostToolUse", "Possible duplicate or contradiction: " + ", ".join(strong)

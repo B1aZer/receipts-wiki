@@ -22,7 +22,7 @@ def changes_for(home, rels, event=None):
     """Net change of each path against HEAD. Generated index files are left to the index rebuild."""
     changes = []
     for rel in sorted(set(rels)):
-        if indexer.is_index_file(rel):
+        if indexer.is_generated_index(home, rel):
             continue
         new = _read(Path(home) / rel)
         old = gitlog.head_content(home, rel)
@@ -45,12 +45,12 @@ def claims(exclude=None):
 def record(home, changes, agent, session=None, turn=None, cwd=None, transcript=None, recovered=False, claimed=frozenset()):
     """Commit these changes and the index files they affect. Returns (committed, detail, index paths)."""
     rels = [change["rel"] for change in changes]
-    note_rels = {rel for rel in rels if rel.startswith("memory/") and not indexer.is_generated(rel)}
+    note_rels = {rel for rel in rels if indexer.is_note(rel)}
     # A missing MEMORY.md is created too, so an agent can see an empty memory with one read.
     if note_rels or not (Path(home) / "memory" / "MEMORY.md").exists():
         indexer.build(home, include=gitlog.tracked(home) | note_rels)
     extra = [path for path in gitlog.dirty_paths(home)
-             if indexer.is_generated(path) and path not in rels and path not in claimed]
+             if indexer.is_generated(home, path) and path not in rels and path not in claimed]
     if not changes and not extra:
         return False, "no change", []
     message = gitlog.turn_message(changes, extra, agent, session, turn, cwd, transcript, recovered)
@@ -97,7 +97,7 @@ def sweep(home, current_session=None):
         elif not data.get("pending") and idle > config.JOURNAL_RETENTION_DAYS * 86400:
             state.remove(session)
     claimed = claims()
-    external = [path for path in gitlog.dirty_paths(home) if path not in claimed and not indexer.is_index_file(path)]
+    external = [path for path in gitlog.dirty_paths(home) if path not in claimed and not indexer.is_generated_index(home, path)]
     changes = changes_for(home, external, event="external.change")
     if changes:
         record(home, changes, "unknown", claimed=claimed)

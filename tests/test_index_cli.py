@@ -20,6 +20,32 @@ class IndexTests(HookTestCase):
         self.assertIn("Change: index.rebuilt memory/MEMORY.md", message)
         self.assertEqual(self.commit_count(), 2)
 
+    def test_hand_written_index_files_are_never_regenerated(self):
+        hand = "# unrekt index\n\n- [bloomer](project_bloomer.md) · [curve](project_curve.md)\n"
+        (self.home / "memory" / "index-unrekt.md").write_text(hand)
+        self.git("add", "memory/index-unrekt.md")
+        self.git("commit", "-q", "-m", "hand-written index")
+        self.write_and_capture("memory/a.md", note("a-note", "api note", "Body."), turn="t1")
+        self.write_and_capture("memory/b.md", note("b-note", "unrekt note", "Body.").replace("area: api", "area: unrekt"), turn="t2")
+        self.hook("session-start", {"session_id": "s2"})
+        self.assertEqual((self.home / "memory" / "index-unrekt.md").read_text(), hand)
+        self.assertNotIn("index-unrekt.md", self.git("log", "--format=%B", "-3").stdout)
+        self.assertIn("a-note", (self.home / "memory" / "index-api.md").read_text())
+
+    def test_gate_and_capture_treat_hand_written_indexes_as_ordinary_files(self):
+        hand = self.home / "memory" / "index-unrekt.md"
+        hand.write_text("# unrekt index\n\n- [bloomer](project_bloomer.md)\n")
+        self.git("add", "memory/index-unrekt.md")
+        self.git("commit", "-q", "-m", "hand-written index")
+        edited = hand.read_text() + "- [curve](project_curve.md)\n"
+        self.assertIsNone(self.hook("gate", self.payload("Write", hand, content=edited)))
+        self.write_and_capture("memory/index-unrekt.md", edited)
+        self.assertIn("Change: fact.updated memory/index-unrekt.md", self.last_message())
+        generated = self.home / "memory" / "index-api.md"
+        self.write_and_capture("memory/api.md", note("api-note", "api note", "Body."), turn="t2")
+        denied = self.hook("gate", self.payload("Write", generated, content="- [x](x.md)"))
+        self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")
+
     def test_large_memory_lists_areas_instead_of_notes(self):
         for index in range(160):
             area = ("api", "infra", "tooling")[index % 3]
