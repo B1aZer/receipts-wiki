@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -307,15 +308,56 @@ class TurnTests(HookTestCase):
         self.assertIn("Change: external.change memory/codex.md", message)
         self.assertIn("Agent: unknown", message)
 
-    def test_merge_in_progress_postpones_the_commit(self):
+    def test_merge_in_progress_postpones_the_commit_and_says_so(self):
         self.write("memory/a.md", note("a", "cache", "Body."))
         merge_head = self.home / ".git" / "MERGE_HEAD"
         merge_head.write_text(self.git("rev-parse", "HEAD").stdout)
-        self.stop()
+        output = self.stop()
         self.assertEqual(self.commit_count(), 1)
+        self.assertIn("merge, rebase", output["systemMessage"])
         merge_head.unlink()
-        self.stop()
+        self.assertIsNone(self.stop())
         self.assertEqual(self.commit_count(), 2)
+
+    def test_failed_commit_is_reported_every_turn_until_it_succeeds(self):
+        hook = self.home / ".git" / "hooks" / "pre-commit"
+        hook.parent.mkdir(parents=True, exist_ok=True)
+        hook.write_text("#!/bin/sh\necho 'rejected by pre-commit' >&2\nexit 1\n")
+        hook.chmod(0o755)
+        self.write("memory/a.md", note("a", "cache", "Body."))
+        first = self.stop()
+        self.assertIn("could not commit 1 memory file(s)", first["systemMessage"])
+        self.assertIn("rejected by pre-commit", first["systemMessage"])
+        second = self.stop(turn="t2")
+        self.assertIn("2 attempts since", second["systemMessage"])
+        lint = subprocess.run(["python3", str(RW), "lint"], capture_output=True, text=True, env=self.env(), check=False).stdout
+        self.assertIn("uncommitted memory write(s), failing since", lint)
+        hook.unlink()
+        self.assertIsNone(self.stop(turn="t3"))
+        self.assertEqual(self.commit_count(), 2)
+        self.assertNotIn("failing since", subprocess.run(["python3", str(RW), "lint"], capture_output=True, text=True, env=self.env(), check=False).stdout)
+
+    def test_signing_failure_is_reported(self):
+        self.git("config", "commit.gpgsign", "true")
+        self.git("config", "gpg.format", "ssh")
+        self.git("config", "user.signingkey", str(self.tmp / "no-such-key"))
+        self.write("memory/a.md", note("a", "cache", "Body."))
+        output = self.stop()
+        self.assertEqual(self.commit_count(), 1)
+        self.assertIn("could not commit", output["systemMessage"])
+
+    def test_session_start_reports_failed_catch_up_and_stale_files(self):
+        hook = self.home / ".git" / "hooks" / "pre-commit"
+        hook.parent.mkdir(parents=True, exist_ok=True)
+        hook.write_text("#!/bin/sh\nexit 1\n")
+        hook.chmod(0o755)
+        path = self.home / "memory" / "codex.md"
+        path.write_text(note("codex-note", "written without hooks", "Body."))
+        old = time.time() - 3600
+        os.utime(path, (old, old))
+        message = self.hook("session-start", {"session_id": "s2"})["systemMessage"]
+        self.assertIn("could not commit memory changes made outside a session turn", message)
+        self.assertIn("uncommitted for over 30 minutes: memory/codex.md", message)
 
     def test_related_hint_only_for_new_notes(self):
         self.write_and_capture("memory/project_quotes_cache.md", note("quotes-cache-ttl", "quotes cache ttl five minutes", "Old."), turn="t1")

@@ -98,6 +98,26 @@ def remove(session):
         pass
 
 
+def load_health():
+    """The last failed commit outside a session's own turn (catch-up or record), if it has not recovered."""
+    return _load_json(config.state_dir() / "commit_health.json")
+
+
+def save_health(detail, paths):
+    previous = load_health()
+    _save_json(config.state_dir() / "commit_health.json", {
+        "since": previous.get("since") or now_iso(), "at": now_iso(),
+        "detail": detail, "paths": sorted(paths)[:10],
+    })
+
+
+def clear_health():
+    try:
+        (config.state_dir() / "commit_health.json").unlink()
+    except OSError:
+        pass
+
+
 def touch_read(rel, when=None):
     path = config.state_dir() / "last_read.json"
     data = _load_json(path)

@@ -6,9 +6,45 @@ they affect. Nothing waits for a session to end: an interrupted turn is committe
 prompt, a log abandoned by a crashed session is committed by another session, and changes made without
 hooks are committed as external.change.
 """
+import os
+import time
 from pathlib import Path
 
 from . import config, gitlog, indexer, state
+
+IN_PROGRESS = "a merge, rebase, cherry-pick or revert is in progress in the memory repository; finish or abort it"
+STALE_UNCOMMITTED_MINUTES = 30
+
+
+def short_error(detail):
+    text = " ".join(str(detail or "").split())
+    return (text[:297] + "...") if len(text) > 300 else (text or "git commit failed without an error message")
+
+
+def _note_failure(data, detail):
+    previous = data.get("commit_failure") or {}
+    data["commit_failure"] = {"since": previous.get("since") or state.now_iso(), "at": state.now_iso(),
+                              "count": int(previous.get("count") or 0) + 1, "detail": short_error(detail)}
+
+
+def stale_uncommitted(home, minutes=STALE_UNCOMMITTED_MINUTES):
+    """Memory files changed on disk more than `minutes` ago and still not committed, excluding files that
+    a session active within the last hour is still working on."""
+    active = set()
+    for data in state.all_sessions():
+        if state.seconds_since(data.get("updated")) < config.STALE_JOURNAL_MINUTES * 60:
+            active.update(data.get("pending") or {})
+    stale = []
+    for rel in gitlog.dirty_paths(home):
+        if rel in active or indexer.is_generated(home, rel):
+            continue
+        try:
+            age = time.time() - os.stat(Path(home) / rel).st_mtime
+        except OSError:
+            age = float("inf")
+        if age > minutes * 60:
+            stale.append(rel)
+    return stale
 
 
 def _read(path):
@@ -65,8 +101,11 @@ def flush_session(home, session, data, turn=None, cwd=None, transcript=None, rec
     """
     pending = data.get("pending") or {}
     selected = {rel: entry for rel, entry in pending.items() if not skip_turn or entry.get("turn") != skip_turn}
-    if not selected or not gitlog.is_repo(home) or gitlog.operation_in_progress(home):
+    if not selected or not gitlog.is_repo(home):
         return None
+    if gitlog.operation_in_progress(home):
+        _note_failure(data, IN_PROGRESS)
+        return False, IN_PROGRESS
     entries = list(selected.values())
     turn = turn or ", ".join(sorted({str(e.get("turn")) for e in entries if e.get("turn")})) or None
     cwd = cwd or next((e.get("cwd") for e in entries if e.get("cwd")), None)
@@ -76,15 +115,23 @@ def flush_session(home, session, data, turn=None, cwd=None, transcript=None, rec
     committed, detail, extra = record(home, changes, "claude-code", session, turn, cwd, transcript, recovered, claimed)
     if committed or detail == "no change":
         data["pending"] = {rel: entry for rel, entry in pending.items() if rel not in selected}
+        data.pop("commit_failure", None)
         for rel in extra:
             if rel in data["reads"]:
                 data["reads"][rel] = state.content_hash(Path(home) / rel, rel)
+    else:
+        _note_failure(data, detail)
     return committed, detail
 
 
 def sweep(home, current_session=None):
     """Commit logs abandoned by other sessions (credited to them) and changes made without hooks."""
-    if not gitlog.is_repo(home) or gitlog.operation_in_progress(home):
+    if not gitlog.is_repo(home):
+        return
+    if gitlog.operation_in_progress(home):
+        dirty = gitlog.dirty_paths(home)
+        if dirty:
+            state.save_health(IN_PROGRESS, dirty)
         return
     for data in state.all_sessions():
         session = data.get("session")
@@ -100,4 +147,10 @@ def sweep(home, current_session=None):
     external = [path for path in gitlog.dirty_paths(home) if path not in claimed and not indexer.is_generated_index(home, path)]
     changes = changes_for(home, external, event="external.change")
     if changes:
-        record(home, changes, "unknown", claimed=claimed)
+        committed, detail, _ = record(home, changes, "unknown", claimed=claimed)
+        if committed or detail == "no change":
+            state.clear_health()
+        else:
+            state.save_health(short_error(detail), [change["rel"] for change in changes])
+    elif not gitlog.dirty_paths(home):
+        state.clear_health()

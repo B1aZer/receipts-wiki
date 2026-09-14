@@ -93,8 +93,8 @@ Each file gets one event, the net change of the whole turn against `HEAD`: a not
 
 - One commit per turn that changed memory. No change, no commit.
 - A commit contains only the files this session wrote, plus the generated indexes. Files written by other sessions that are still active stay uncommitted until their own turns end. Indexes are built from committed notes and this turn's notes, so another session's unfinished note never appears in them.
-- The end-of-turn hook prints nothing and never asks the agent to continue. It does nothing when `stop_hook_active` is set.
-- Commits wait while a merge, rebase, cherry-pick or revert is in progress in the memory repository.
+- The end-of-turn hook never asks the agent to continue, and does nothing when `stop_hook_active` is set. It prints nothing unless a commit fails or has to wait; then it shows the user a message with git's error at the end of every turn until the commit succeeds. Session start reports failed catch-up commits and memory files left uncommitted for more than 30 minutes, and lint lists both as problems.
+- Commits wait while a merge, rebase, cherry-pick or revert is in progress in the memory repository, and say so.
 - History is never amended, rebased, reset or force-pushed. A correction is a new commit. In Claude Code a hook refuses git commands that would rewrite the memory repository's history; `git revert` stays allowed because it adds a commit.
 - Commits are local. The plugin never pushes.
 

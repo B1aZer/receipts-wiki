@@ -245,6 +245,18 @@ def _end_turn(payload):
         messages = archive.append(home, session, transcript_path, payload.get("cwd"), data)
         archive.write_proposals(home, session, archive.lesson_candidates(messages), data)
     state.save(session, data)
+    failure = data.get("commit_failure")
+    if failure and data.get("pending"):
+        _emit({"systemMessage": _failure_message(home, len(data["pending"]), failure)})
+
+
+def _failure_message(home, count, failure):
+    tries = f", {failure['count']} attempts since {failure['since']}" if int(failure.get("count") or 0) > 1 else ""
+    detail = str(failure.get("detail") or "").rstrip()
+    if detail and detail[-1] not in ".!?":
+        detail += "."
+    return (f"receipts-wiki could not commit {count} memory file(s) in {home}{tries}: {detail} "
+            "The changes are on disk and are retried every turn; run `rw.py lint` to see them.")
 
 
 def hook_stop(payload):
@@ -289,7 +301,7 @@ def hook_prompt(payload):
 def hook_session_start(payload):
     home = config.home()
     session = payload.get("session_id")
-    parts = []
+    parts, notices = [], []
     agents = home / "AGENTS.md"
     if agents.exists():
         raw = agents.read_bytes()
@@ -312,13 +324,28 @@ def hook_session_start(payload):
                 turns.flush_session(home, session, data, recovered=True)
             state.save(session, data)
             turns.sweep(home, current_session=session)
+            failure = data.get("commit_failure")
             data = state.load(session)
             data["swept_at"] = state.now_iso()
+            if failure and data.get("pending"):
+                notices.append(_failure_message(home, len(data["pending"]), failure))
+            health = state.load_health()
+            if health.get("detail"):
+                notices.append(f"receipts-wiki could not commit memory changes made outside a session turn in {home} "
+                               f"(last attempt {health.get('at')}): {health['detail']}")
+            stale = turns.stale_uncommitted(home)
+            if stale:
+                shown = ", ".join(stale[:3]) + (f" and {len(stale) - 3} more" if len(stale) > 3 else "")
+                notices.append(f"receipts-wiki: {len(stale)} memory file(s) have been uncommitted for over "
+                               f"{turns.STALE_UNCOMMITTED_MINUTES} minutes: {shown}. Run `rw.py lint` for details.")
         waiting = _proposals_waiting(home)
         if waiting:
             parts.append(f"{len(waiting)} lesson proposal file(s) are waiting in {home / 'proposals'}. Mention this to the user once; they can review them with the receipts-wiki lint-review skill.")
             data["proposals_noticed_at"] = state.now_iso()
         state.save(session, data)
 
-    if parts:
-        _emit(_context("SessionStart", "\n\n".join(parts)))
+    output = _context("SessionStart", "\n\n".join(parts)) if parts else {}
+    if notices:
+        output["systemMessage"] = " ".join(notices)
+    if output:
+        _emit(output)

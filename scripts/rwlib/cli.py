@@ -136,6 +136,14 @@ def lint(home, stale_days=90, unread_days=60, today=None):
         dirty = gitlog.git(home, "status", "--porcelain", "--untracked-files=all", "--", "memory", "AGENTS.md").stdout.strip()
         if dirty:
             warnings.append(f"{len(dirty.splitlines())} memory file(s) have uncommitted changes; they are committed at the end of the writing session's turn, or as external.change at the next catch-up")
+        health = state.load_health()
+        if health.get("detail"):
+            problems.append(f"the last catch-up commit failed at {health.get('at')} (failing since {health.get('since')}): {health['detail']}")
+        for data in state.all_sessions():
+            failure = data.get("commit_failure")
+            if failure and data.get("pending"):
+                problems.append(f"session {data['session']} has {len(data['pending'])} uncommitted memory write(s), "
+                                f"failing since {failure.get('since')}: {failure.get('detail')}")
 
     ignore_file = home / ".gitignore"
     ignored = set()
