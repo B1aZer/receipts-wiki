@@ -51,6 +51,8 @@ A receipt lets someone who was not in the session check the claim. Use the most 
 
 Numbers carry their sample size and an absolute date.
 
+Lint accepts receipts cited in the text too: a commit hash, a file path, a transaction or address, an id after a label such as `query q_8812`, a ticket key such as `INC-431`, or a URL. A `Receipts:` line is still better, because the commit that records the note copies it into its `Receipts` trailer. A fact that rests only on what the user said gets `Receipts: user statement`.
+
 ## Updating and correcting
 
 - Update the existing note instead of adding a near-duplicate. When a new note closely matches an existing one, the hook names it; read that note and update it if the new one changes what it says.

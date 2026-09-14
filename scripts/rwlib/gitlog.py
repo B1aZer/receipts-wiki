@@ -26,6 +26,15 @@ WHY = re.compile(r"^\s*(?:\*\*)?Why:(?:\*\*)?\s*(.+?)\s*$", re.M)
 REOPEN = re.compile(r"^\s*(?:\*\*)?Reopen if:(?:\*\*)?\s*(.+?)\s*$", re.M)
 RECEIPTS_LINE = re.compile(r"^\s*(?:\*\*)?Receipts:(?:\*\*)?\s*(.+?)\s*$", re.M)
 LAST_VERIFIED = re.compile(r"^\s*last_verified:.*$", re.M)
+# Evidence cited in a note's text: a commit hash, a file path, a transaction or address, an id with a digit
+# after a label (run, query, ticket, incident...), a ticket key such as INC-431, or a URL.
+INLINE_RECEIPT = re.compile(
+    r"\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b"
+    r"|(?:[\w.-]+/)+[\w.-]+\.(?:py|ts|tsx|js|sql|md|yaml|yml|json|sh|rs|toml|go|ipynb)\b"
+    r"|\b[1-9A-HJ-NP-Za-km-z]{43,88}\b|\b0x[0-9a-fA-F]{40,64}\b"
+    r"|(?i:\b(?:run|query|job|exec|execution|ticket|issue|pr|incident|tx)\b[ _:#=-]*(?:id)?[ :#=]*[A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)"
+    r"|\b[A-Z][A-Z0-9]+-\d+\b|https?://\S+"
+)
 
 ACTION_LIMIT = 200
 SUBJECT_LIMIT = 72

@@ -179,8 +179,8 @@ def lint(home, stale_days=90, unread_days=60, today=None):
         label = secrets.find_secret(text)
         if label:
             problems.append(f"{rel} contains a secret value ({label})")
-        if item["type"] == "project" and not gitlog.receipts_of(text):
-            warnings.append(f"{rel} is a project note without receipts")
+        if item["type"] == "project" and not gitlog.receipts_of(text) and not gitlog.INLINE_RECEIPT.search(frontmatter.split(text)[1]):
+            warnings.append(f"{rel} is a project note without receipts (no Receipts line, and no commit, file, transaction or id cited in the text)")
         if RELITIGATE.search(text) and not gitlog.REOPEN.search(text):
             warnings.append(f"{rel} says not to revisit a decision but has no 'Reopen if:' line")
         if item["status"] == "retired":

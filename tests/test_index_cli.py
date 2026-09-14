@@ -136,6 +136,23 @@ class CommandTests(HookTestCase):
         self.assertNotIn("abcdefghijklmnopqrstuvwxyz123456", output)
         self.assertNotIn(".gitignore does not exclude", output)
 
+    def test_lint_accepts_receipts_cited_in_the_text(self):
+        (self.home / ".gitignore").write_text("sessions/\nproposals/\n.state/\n")
+        cited = {
+            "commit.md": "Fixed in commit a1b2c3d on 2026-09-02.",
+            "path.md": "The gate lives in `scripts/rwlib/hooks.py`.",
+            "ticket.md": "Raised under ticket PARTNER-812.",
+            "query.md": "Measured with query q_8812: 14 of 200 stale.",
+            "statement.md": "The game is called Hateg Island.\n\nReceipts: user statement",
+        }
+        for name, body in cited.items():
+            (self.home / "memory" / name).write_text(note(name[:-3], "cited", body))
+        (self.home / "memory" / "bare.md").write_text(note("bare", "no evidence", "Run the numbers again sometime, dated 2026-09-02."))
+        output = self.cli("lint")
+        for name in cited:
+            self.assertNotIn(f"memory/{name} is a project note without receipts", output)
+        self.assertIn("memory/bare.md is a project note without receipts", output)
+
     def test_lint_flags_missing_gitignore_and_broken_links(self):
         self.write_and_capture("memory/a.md", note("a", "cache", "See [missing](gone.md)."))
         output = self.cli("lint")
