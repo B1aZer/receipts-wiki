@@ -54,6 +54,30 @@ To try it without installing: `claude --plugin-dir /path/to/receipts-wiki`.
 
 Other agents read the same rules through `AGENTS.md` (Codex: `ln -s ~/.agents/AGENTS.md ~/.codex/AGENTS.md`) and commit their own memory writes. Anything they leave uncommitted is recorded as `external.change` at the next catch-up in a Claude Code session. To use the hooks without the plugin system, see [docs/manual-install.md](docs/manual-install.md).
 
+## Updating
+
+To move an installed copy to a newer release:
+
+```
+claude plugin marketplace update receipts-wiki   # pull the latest from the marketplace source
+claude plugin update receipts-wiki               # install it; the CLI reports the version change
+```
+
+Then **restart Claude Code**. Hooks and skills are read once at session start, so a running session keeps the old version until you restart. An update touches only the plugin; the memory home and its git history are left alone.
+
+If you develop the plugin, keep one editing clone and treat the pushed repo as the source of truth:
+
+```
+git clone git@github.com:B1aZer/receipts-wiki.git   # your editing home, e.g. ~/Sites/receipts-wiki
+# edit, run the tests (python3 -m unittest discover -s tests), then:
+git commit -am "..." && git push
+claude plugin marketplace update receipts-wiki       # refresh the managed checkout from your push
+claude plugin update receipts-wiki                   # install it into the run cache
+# restart Claude Code
+```
+
+The checkout Claude Code manages (`~/.claude/plugins/marketplaces/receipts-wiki`) is refreshed by `marketplace update`; do not hand-edit it, so its pull never conflicts. `claude plugin prune` removes superseded cached versions.
+
 ## The memory home
 
 ```
