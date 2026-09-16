@@ -2,6 +2,19 @@
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - unreleased
+
+### Added
+
+- Cursor notes (`metadata.type: cursor`, one per area): the one note kind that holds task state, the current position and the next action of a workstream. They are overwritten in place rather than corrected forward, carry no receipts of their own, are listed under "Where things stand" in `MEMORY.md` instead of the area index, and are shown at session start. Added after a seven-week session was lost to a safeguard flag that also blocked compaction: the durable facts survived in notes, but the position had to be reconstructed.
+- `resume` command and skill: mine a lost session's redacted conversation archive (`sessions/**/<id>.md`) for decisions and next actions that no current note covers, and present them as candidates to draft with the user. `rw.py resume [<session>] [--cwd <path>]`. Archive text is treated as untrusted data, quoted for review, never applied automatically. Design and agent-memory-literature alignment in `docs/PLAN.md` section 8.
+
+### Changed
+
+- `hook_session_start` also lists the active cursor notes (name and one-line description) as context, within the output budget and skipped in unattended sessions.
+- `indexer.build` renders cursor notes in a dedicated `## Where things stand` block in `MEMORY.md` and keeps them out of the per-area indexes.
+- `templates/AGENTS.md` and `templates/WRITING.md` document cursor notes and their exemptions from the fact-note rules (task state allowed, overwrite in place, no receipts).
+
 ## [0.2.0] - unreleased
 
 ### Added

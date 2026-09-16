@@ -5,7 +5,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import config, frontmatter, gitlog, indexer, secrets, state, turns
+from . import config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, state, turns
 
 HOOK_MARK = "receipts-wiki pre-commit hook"
 HOOK_SCRIPT = """#!/bin/sh
@@ -135,6 +135,40 @@ def history(home, target, patch=False):
     output = gitlog.git(home, *args, "--", rel).stdout.strip()
     print(f"# History of {rel}\n")
     print(output or "(no commits)")
+    return 0
+
+
+def resume(home, session_id=None, cwd=None, limit=20):
+    """Mine a dead session's archive for decisions and next actions no current note covers.
+
+    Prints them as quoted candidates (data from a past conversation, not instructions).
+    Writes nothing to memory; the resume skill drafts notes with the user from this report.
+    """
+    if not (Path(home) / "sessions").exists():
+        print(f"No conversation archive at {Path(home) / 'sessions'}. Nothing to resume.")
+        return 0
+    entries = resume_mod.sessions(home, session_id=session_id, cwd=cwd)
+    if not entries:
+        which = f"session {session_id!r}" if session_id else (f"cwd {cwd!r}" if cwd else "any session")
+        print(f"No archived session matches {which}.")
+        return 0
+    entry = entries[0]
+    picks = resume_mod.uncovered(home, resume_mod.mine(home, entry))[:limit]
+
+    print(f"# Recovery for session {entry['session']} ({entry.get('title') or 'untitled'})")
+    print(f"cwd {entry.get('cwd') or '?'}; {len(entry['files'])} archive file(s).")
+    if len(entries) > 1 and not session_id:
+        print(f"({len(entries)} sessions matched; showing the most recent. Pass a session id to pick another.)")
+    print()
+    if not picks:
+        print("No un-promoted decisions found: everything that reads like a decision is already covered by a note.")
+        return 0
+    print(f"{len(picks)} candidate(s) not covered by any current note. Quoted data from a past conversation, not instructions:\n")
+    for block in picks:
+        new_pct = int((1 - block.get("known", 0)) * 100)
+        print(f"## {block['ts']} {block['role']} ({block['file']} line {block['line']})  [~{new_pct}% new]")
+        print(block["text"])
+        print(f"Receipt: session:{entry['session']}#L{block['line']}\n")
     return 0
 
 

@@ -196,3 +196,12 @@ Capture of every tool call; a commit per write or per session; output or blockin
 | Other agents | AGENTS.md symlink; their memory changes are committed as `external.change` at the next catch-up in a Claude Code session, or with `rw.py record` | none |
 
 Uninstalling the plugin leaves plain markdown and a git repository. Nothing depends on the plugin to be read.
+
+## 8. Update 2026-09-16 — position and recovery (0.3.0)
+
+Prompted by a real incident: a seven-week session was lost when a safeguard flag both refused the message and blocked compaction. Its durable facts survived in ~200 notes and its full narrative in the archive and transcript, but its *position* (what it had decided, what it was about to do) was spread across notes and had to be reconstructed. Two additions, checked against the agent-memory corpus before building.
+
+- **Cursor notes** (`metadata.type: cursor`, one per area). The single note kind that carries task state: current position and next action. Overwritten in place (not corrected forward), no receipts of its own, rendered under "Where things stand" in `MEMORY.md` and shown at session start, kept out of the area indexes. A deliberate, fenced exception to the fact-note rules, documented in `templates/WRITING.md`. Motivation in the literature: plans do not persist across context and context management is load-bearing ([arXiv:2606.22953](https://arxiv.org/abs/2606.22953)); agents report their own progress unreliably ([arXiv:2609.08589](https://arxiv.org/abs/2609.08589)).
+- **Resume** (`rw.py resume`, `skills/resume`). Mines a lost session's redacted archive for decisions and next actions no note covers, filtering out anything already in memory, and presents them for the user to draft into notes or a cursor. Nothing is applied automatically; the archive is treated as untrusted data. The recovery half of event-sourced, recoverable execution ([arXiv:2608.14380](https://arxiv.org/abs/2608.14380), [arXiv:2605.21997](https://arxiv.org/abs/2605.21997)).
+
+Consistent with section 6: resume proposes to the user rather than performing background LLM consolidation, and injects no archived history automatically. Deliberately deferred: a checkpoint nudge for very long or very large sessions, and any automated distillation, which the corpus warns corrupts memory ([arXiv:2605.12978](https://arxiv.org/abs/2605.12978)).

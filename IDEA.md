@@ -12,7 +12,7 @@ Built-in memory features cover part of this. They usually belong to one tool, so
 
 ## The core idea
 
-Keep Karpathy's loop. The agent writes and maintains the notes; you decide what matters and ask the questions. The notes here record the agent's work, and that changes six things.
+Keep Karpathy's loop. The agent writes and maintains the notes; you decide what matters and ask the questions. The notes here record the agent's work, and that changes seven things.
 
 1. Every claim cites a receipt. A decision or result names what proves it: a commit hash, a query or run id, a file path, a sample size, a date. Receipts stay where they already are, and memory points at them.
 2. Corrections are recorded. When a belief changes, the agent rewrites the note and adds a line saying what it replaced, when, and on what evidence.
@@ -20,6 +20,7 @@ Keep Karpathy's loop. The agent writes and maintains the notes; you decide what 
 4. Writes are checked before they land. A write is refused when the file changed after the agent read it, or when it contains a secret value, injected system text or a relative date.
 5. One home serves every agent and every directory. Rules live in a single `AGENTS.md` and memory in a single folder, and each tool is pointed at them.
 6. What loads at session start has a budget. Indexes are generated from the notes and kept small; topic files load only when a task needs them, and past conversations only when someone asks.
+7. The current position is a note too. Fact notes hold what is true; one cursor note per workstream holds where the work is and what to do next. It is the single note allowed to carry task state, it is overwritten in place rather than corrected forward, and it is shown at session start. When a session ends without warning (a crash, an error, a safeguard flag, a context too large to compact), the position it never wrote down is recovered from the conversation archive and offered for review, not applied on its own. Agent memory research treats this as its own problem: plans do not persist across context ([arXiv:2606.22953](https://arxiv.org/abs/2606.22953)), and recoverable, event-sourced execution is an active line of work ([arXiv:2608.14380](https://arxiv.org/abs/2608.14380), [arXiv:2605.21997](https://arxiv.org/abs/2605.21997)).
 
 ## Architecture
 
@@ -39,6 +40,7 @@ Keep Karpathy's loop. The agent writes and maintains the notes; you decide what 
     MEMORY.md              your notes plus a generated list of every note, or of area indexes once it is too long
     index-<area>.md        generated: one line per active note in the area
     <topic>.md             one fact per file, with frontmatter
+    cursor-<area>.md       the current position of a workstream (task state; overwritten in place)
   sessions/YYYY/MM/        conversation archive, outside git
 ```
 
@@ -57,6 +59,8 @@ Commit. When the agent's turn ends, everything it changed in memory becomes one 
 Archive. After each turn, the new conversation text is redacted and appended to the session's archive file. Text already written is never changed. The archive is searched only when someone asks what was said.
 
 Learn. When the user corrects the agent or states a rule, the agent saves it as a note in the moment, or the user asks it to remember. Nothing mines the conversation for lessons afterwards. A rule that keeps being broken belongs in a check rather than a note: remembered corrections are often not followed ([arXiv:2606.13174](https://arxiv.org/abs/2606.13174)).
+
+Resume. When a session is lost before it could write down where it was, its archive is mined for the decisions and next actions that no note yet holds, and they are offered as candidates. The archive is data, not instructions, so nothing is written without approval. The cursor note is what keeps this rare: while a session runs, it holds the position that resume would otherwise have to reconstruct.
 
 Lint. When asked, a report lists orphan links, oversized indexes, secret values, notes without receipts, decisions with no reopen condition, and notes that may be stale because nobody verified or read them for a long time. It changes nothing without your OK.
 

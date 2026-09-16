@@ -20,6 +20,7 @@ Commands:
     rw.py install-git-hook
     rw.py history <note> [--patch]
     rw.py recall <query...> [--limit N]
+    rw.py resume [<session>] [--cwd PATH] [--limit N]
     rw.py lint [--stale-days N] [--unread-days N]
 """
 import argparse
@@ -74,6 +75,10 @@ def main(argv):
     check = commands.add_parser("lint", help="report problems, warnings and forgetting candidates")
     check.add_argument("--stale-days", type=int, default=90)
     check.add_argument("--unread-days", type=int, default=60)
+    res = commands.add_parser("resume", help="mine a dead session's archive for un-promoted decisions and next actions")
+    res.add_argument("session", nargs="?", default=None, help="session id; omit to use --cwd or the most recent session")
+    res.add_argument("--cwd", default=None, help="recover the most recent session archived for this working directory")
+    res.add_argument("--limit", type=int, default=20)
     args = parser.parse_args(argv)
 
     home = config.home()
@@ -89,6 +94,8 @@ def main(argv):
         return cli.history(home, args.note, patch=args.patch)
     if args.command == "recall":
         return cli.recall(home, " ".join(args.query), limit=args.limit)
+    if args.command == "resume":
+        return cli.resume(home, args.session, cwd=args.cwd, limit=args.limit)
     return cli.lint(home, stale_days=args.stale_days, unread_days=args.unread_days)
 
 

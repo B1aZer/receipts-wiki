@@ -83,25 +83,37 @@ def render_area(area, items):
     return "\n".join(lines) + "\n"
 
 
+def render_cursors(cursors):
+    """Cursor notes get their own section at the top of the block; empty when there are none."""
+    if not cursors:
+        return []
+    lines = ["## Where things stand", ""]
+    lines.extend(note_line(item) for item in sorted(cursors, key=lambda n: n["name"].lower()))
+    lines.append("")
+    return lines
+
+
 def render_notes(groups):
-    lines = [START, "## Notes", ""]
+    lines = ["## Notes", ""]
     if not groups:
         lines.append("No notes yet.")
     for area in sorted(groups):
         lines.append(f"{area}:")
         lines.extend(note_line(item) for item in sorted(groups[area], key=lambda n: n["name"].lower()))
-    lines.append(END)
-    return "\n".join(lines)
+    return lines
 
 
 def render_areas(counts):
-    lines = [START, "## Areas", ""]
+    lines = ["## Areas", ""]
     if not counts:
         lines.append("No notes yet.")
     for area in sorted(counts):
         lines.append(f"- [{area}](index-{area}.md): {counts[area]} notes")
-    lines.append(END)
-    return "\n".join(lines)
+    return lines
+
+
+def _block(cursors, body_lines):
+    return "\n".join([START, *render_cursors(cursors), *body_lines, END])
 
 
 def within_budget(text):
@@ -118,8 +130,13 @@ def build(home, include=None):
     """Rewrite index files whose content changed. Returns (changed paths relative to home, budget warnings)."""
     memory = Path(home) / "memory"
     groups = {}
+    cursors = []
     for item in notes(home, include):
-        if item["status"] != "retired":
+        if item["status"] == "retired":
+            continue
+        if item["type"] == "cursor":
+            cursors.append(item)
+        else:
             groups.setdefault(item["area"], []).append(item)
     existing = {path.name[len("index-"):-len(".md")] for path in memory.glob("index-*.md")
                 if is_generated_index(home, f"memory/{path.name}")}
@@ -139,9 +156,9 @@ def build(home, include=None):
 
     root = memory / "MEMORY.md"
     current = root.read_text(encoding="utf-8", errors="replace") if root.exists() else "# Memory map\n"
-    updated = _splice(current, render_notes(groups))
+    updated = _splice(current, _block(cursors, render_notes(groups)))
     if not within_budget(updated):
-        updated = _splice(current, render_areas({area: len(items) for area, items in groups.items()}))
+        updated = _splice(current, _block(cursors, render_areas({area: len(items) for area, items in groups.items()})))
     if _write_if_changed(root, updated):
         changed.append("memory/MEMORY.md")
     return changed, warnings

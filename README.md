@@ -4,13 +4,13 @@ Git-versioned memory for AI agents, where every remembered fact carries its rece
 
 receipts-wiki builds on Claude Code's built-in auto memory and adds what it lacks: one memory home shared by every agent and directory, a git commit for each agent turn that changed memory, naming the session and the reasons, checks that stop stale or secret-bearing writes, and an archive of past conversations that is searched only when you ask. It extends Andrej Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) idea file from knowledge you collect to the knowledge an agent produces while it works. Unofficial, and not affiliated with Karpathy.
 
-Status: 0.2.0-dev, in daily use by its author since 2026-09-13. First eval results are under [Results so far](#results-so-far).
+Status: 0.3.0-dev, in daily use by its author since 2026-09-13. First eval results are under [Results so far](#results-so-far).
 
 | File | What it is |
 |---|---|
 | [IDEA.md](IDEA.md) | The idea file. Paste it into any agent to build your own version. |
 | [hooks/hooks.json](hooks/hooks.json), [scripts/rw.py](scripts/rw.py) | The Claude Code plugin: hooks and a small command line |
-| [skills/](skills/) | Three manual skills: `setup`, `recall`, `lint-review` |
+| [skills/](skills/) | Four manual skills: `setup`, `recall`, `resume` (recover a lost session), `lint-review` |
 | [templates/](templates/) | `AGENTS.md` (guardrails for every agent) and `WRITING.md` (how to write a note) |
 | [docs/](docs/) | [COMMIT-SPEC.md](docs/COMMIT-SPEC.md), [PLAN.md](docs/PLAN.md), [manual-install.md](docs/manual-install.md) |
 | [evals/](evals/) | A no-network functional eval, model-behaviour checks and the update-correctness eval |
@@ -20,7 +20,7 @@ Status: 0.2.0-dev, in daily use by its author since 2026-09-13. First eval resul
 
 | When | What receipts-wiki does |
 |---|---|
-| The session starts | Loads `~/.agents/AGENTS.md` into the session, capped at 8 KB, and the memory index for the working directory: the nearest folder, walking up, whose name matches an `index-<name>.md`, capped at 9,000 characters. Commits what earlier sessions left uncommitted (see the last row) |
+| The session starts | Loads `~/.agents/AGENTS.md` into the session, capped at 8 KB, and the memory index for the working directory: the nearest folder, walking up, whose name matches an `index-<name>.md`, capped at 9,000 characters. Lists the active cursor notes so the agent picks up where work stands. Commits what earlier sessions left uncommitted (see the last row) |
 | A memory file is read | Records the file's hash for this session |
 | Before a memory write | Blocks the write if the file changed after this session read it, or if the text contains a secret value, injected system text or a relative date. Generated index files cannot be edited. The reason goes back to the agent. |
 | Before a git command | Blocks commands that would remove or replace commits in the memory repository (`reset`, `rebase`, `commit --amend`, forced push, `filter-branch`, `update-ref`, `reflog expire`, `gc --prune`, forced branch moves) and points the agent to a forward correction or `git revert`. Other shell commands do not run this check. |
@@ -33,7 +33,9 @@ In sessions nobody is watching, such as `claude -p` or SDK runs (Claude Code set
 
 A turn that does not touch memory costs one short hook run and no commit. Nothing waits for the session to end, so a session can stay open for days across unrelated tasks.
 
-On request, `python3 scripts/rw.py` gives `history <note>` (every commit of one note), `recall <words>` (search the conversation archive), `lint` (problems, warnings and forgetting candidates), `build-index`, `record --agent <name>` (commit changes made outside the hooks, such as an import), and `install-git-hook` (a git pre-commit check in the memory repository that blocks any commit staging a secret value or a note without a name and description, including commits made by other agents or by hand). The `lint-review` skill walks through the lint report with you and changes only what you approve.
+On request, `python3 scripts/rw.py` gives `history <note>` (every commit of one note), `recall <words>` (search the conversation archive), `resume [<session>|--cwd <path>]` (recover a lost session's decisions and next actions from the archive), `lint` (problems, warnings and forgetting candidates), `build-index`, `record --agent <name>` (commit changes made outside the hooks, such as an import), and `install-git-hook` (a git pre-commit check in the memory repository that blocks any commit staging a secret value or a note without a name and description, including commits made by other agents or by hand). The `lint-review` skill walks through the lint report with you and changes only what you approve.
+
+A **cursor note** (`metadata.type: cursor`, one per area) holds the current position and next action of a workstream. It is the one note that may carry task state, it is overwritten in place rather than corrected forward, and it is listed under "Where things stand" in `MEMORY.md` and shown at session start. When a session ends without warning, the `resume` command and skill recover what the cursor did not yet capture from the conversation archive and draft it with you. See [templates/WRITING.md](templates/WRITING.md).
 
 There is no network access, telemetry, vector database or background model call. It needs git and Python 3.9 or later.
 

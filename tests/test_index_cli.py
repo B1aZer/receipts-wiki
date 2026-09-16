@@ -122,6 +122,18 @@ class GitHookTests(HookTestCase):
         self.assertEqual(self.commit_count(), 1)
 
 
+    def test_cursor_note_is_fenced_out_of_area_indexes_into_its_own_block(self):
+        self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "quotes cache TTL is 5 minutes", "Body."))
+        cursor = note("cursor-posthog", "next: send the intro", "Body.").replace("type: project", "type: cursor").replace("area: api", "area: posthog")
+        self.write_and_capture("memory/cursor_posthog.md", cursor)
+        root = (self.home / "memory" / "MEMORY.md").read_text()
+        self.assertIn("## Where things stand", root)
+        self.assertIn("- [cursor-posthog](cursor_posthog.md): next: send the intro", root)
+        self.assertFalse((self.home / "memory" / "index-posthog.md").exists(), "cursor must not create or populate an area index")
+        self.assertNotIn("cursor_posthog.md", (self.home / "memory" / "index-api.md").read_text())
+        self.assertIn("project_ttl.md", (self.home / "memory" / "index-api.md").read_text())
+
+
 class CommandTests(HookTestCase):
     def cli(self, *args):
         result = subprocess.run(["python3", str(RW), *args], capture_output=True, text=True, env=self.env(), check=False)

@@ -411,6 +411,16 @@ def area_index_for(home, cwd):
     return None
 
 
+def _cursor_pointers(home, limit=8):
+    """One line per active cursor note, so a new session opens the right one instead of re-deriving state."""
+    try:
+        cursors = [item for item in indexer.notes(home) if item["type"] == "cursor" and item["status"] != "retired"]
+    except OSError:
+        return ""
+    lines = [f"- {item['name']}: {item['description']}" for item in sorted(cursors, key=lambda n: n["name"].lower())[:limit]]
+    return "\n".join(lines)
+
+
 def hook_session_area(payload):
     """SessionStart: load the memory index for the working directory, within its own output budget."""
     if not config.attended():
@@ -471,6 +481,9 @@ def hook_session_start(payload):
                 notices.append(f"receipts-wiki: {len(stale)} memory file(s) have been uncommitted for over "
                                f"{turns.STALE_UNCOMMITTED_MINUTES} minutes: {shown}. Run `rw.py lint` for details.")
         state.save(session, data)
+        pointers = _cursor_pointers(home)
+        if pointers:
+            parts.append("Where things stand (open the cursor note for the area you're working in):\n" + pointers)
 
     if not config.attended():
         parts = []

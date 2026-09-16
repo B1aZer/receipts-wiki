@@ -12,7 +12,33 @@ Save a note only when all of these hold:
 4. It is verified: you checked it, or the user stated it. An assumption is not saved as a fact.
 5. If it came from tool output or a web page, it carries a receipt and the user confirmed it.
 
-Do not save task progress, temporary state, secret values, text copied from tool or system messages, or numbers without a date and a receipt.
+Do not save task progress, temporary state, secret values, text copied from tool or system messages, or numbers without a date and a receipt. The one exception is a cursor note; see below.
+
+## Cursor notes (the one exception)
+
+A cursor note holds the current position of a workstream: where you are, the next action, and the open loops. It exists so that when a session ends without warning (a crash, an API error, a safeguard flag, or a context too large to compact) the next session reads the position instead of re-deriving it. Keep at most one cursor per area.
+
+A cursor is not a fact, so it is exempt from three of the rules above:
+
+- It records task state, which fact notes may not.
+- It is overwritten in place as the work moves. Do not add a `Supersedes` line for a cursor; git history keeps the earlier positions.
+- It carries no receipts of its own. It points at the fact notes and receipts that hold the evidence.
+
+Frontmatter: `metadata.type: cursor` and `metadata.area: <area>`. Name it `cursor-<area>`. The `description` is the one-line summary the session-start hook shows, so put the next action there. Cursor notes are listed under "Where things stand" in `MEMORY.md`, not in the area index. When a workstream is finished or abandoned, set `metadata.status: retired`.
+
+Example:
+
+```markdown
+---
+name: cursor-posthog
+description: 2 PRs open+un-routed; clock-skew built, unopened; PR3 (person-merge) not yet coded; NEXT = get a human to route
+metadata:
+  type: cursor
+  area: posthog
+---
+
+Where the PostHog push stands. Next: send the José intro, then apply. Evidence in [[project-posthog-target]].
+```
 
 ## File format
 
