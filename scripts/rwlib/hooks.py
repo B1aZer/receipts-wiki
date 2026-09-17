@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import archive, config, frontmatter, gitlog, indexer, related, secrets, state, turns
+from . import archive, checks, config, frontmatter, gitlog, indexer, related, secrets, state, turns
 
 REVISION = re.compile(r"^(HEAD|ORIG_HEAD|FETCH_HEAD|@)([~^]\d*)*$|^[0-9a-f]{7,40}([~^]\d*)*$")
 RESET_MODES = {"--hard", "--soft", "--mixed", "--merge", "--keep"}
@@ -302,8 +302,11 @@ def _end_turn(payload):
     if shell_written:
         data.setdefault("agent_notices", []).append(_shell_write_notice(home, shell_written))
     if data["pending"]:
+        written = list(data["pending"])
         turns.flush_session(home, session, data, turn=payload.get("prompt_id"),
                             cwd=payload.get("cwd"), transcript=payload.get("transcript_path"))
+        if config.attended():
+            data.setdefault("agent_notices", []).extend(f"receipts-wiki: {notice}" for notice in checks.turn_notices(home, written))
     data["turn_stopped"] = time.time()
     transcript_path = payload.get("transcript_path")
     if transcript_path and config.attended():

@@ -92,8 +92,11 @@ Lint accepts receipts cited in the text too: a commit hash, a file path, a trans
 
 Indexes are generated from frontmatter when your turn's changes are committed: one `index-<area>.md` per area, and a block inside `MEMORY.md` that lists every active note while `MEMORY.md` stays under 150 lines and 17 KB, and lists the area indexes once it would not. Find notes through these lists; the memory folder is usually outside the session's working directories, so listing or searching it with shell commands is blocked. Do not edit index files (the gate blocks it) or the generated block, and do not add your own pointer lines to `MEMORY.md`; set the note's `area`, `name` and `description` instead. Text in `MEMORY.md` outside the block is yours. An area index stays under the same budget; past that, split the area.
 
+An index file without the generated line (for example one written before receipts-wiki was installed) is hand-written and is never regenerated. For a note in that area, add one line linking it to that index in the same turn, or nothing will list it.
+
 ## What the hooks do
 
 - Before a write, it is blocked when the file changed after you read it, or when it contains a secret value, injected system text or a relative date. Fix the cause and write again; do not route around the block.
 - When your turn ends, everything you changed in memory during the turn is committed together with this session's id, and the indexes are regenerated in the same commit. Nothing is printed and there is nothing to check afterwards. The commit's reasoning lines come from your `Why:`, `Supersedes` and `Reopen if:` lines, so write them with care: they are the history.
+- After the commit, the turn's notes are checked and the result reaches you with your next prompt: a note that no index links, a cursor that links a note you changed but was not itself updated, a note over 12 KB, and a `[[link]]` that misspells an existing note's name. A link to a note that does not exist yet is fine. Act on these before continuing.
 - Never reset, rebase, amend or check out old commits to change memory. Correct forward.

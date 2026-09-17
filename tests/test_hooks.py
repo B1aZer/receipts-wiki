@@ -489,5 +489,67 @@ class TurnTests(HookTestCase):
         self.assertIn("not the root of a git repository", context)
 
 
+def cursor(name, description, body):
+    return f"---\nname: {name}\ndescription: {description}\nmetadata:\n  type: cursor\n  area: api\n---\n\n{body}\n"
+
+
+class TurnCheckTests(HookTestCase):
+    """Drift checks run after the turn's commit and reach the agent at its next prompt."""
+
+    def notices(self, turn):
+        output = self.hook("prompt", {"session_id": "s1", "prompt_id": turn, "cwd": "/work/api"})
+        return output["hookSpecificOutput"]["additionalContext"] if output else ""
+
+    def test_clean_turn_says_nothing(self):
+        self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Five minutes."))
+        self.assertEqual(self.notices("t2"), "")
+
+    def test_note_missing_from_a_hand_written_index(self):
+        # A full MEMORY.md makes the generated block list areas instead of notes, as in a mature memory home.
+        (self.home / "memory" / "MEMORY.md").write_text("# Memory map\n" + "- pointer\n" * 145)
+        (self.home / "memory" / "index-api.md").write_text("# api\n\n- [other](other.md)\n")
+        self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Five minutes."))
+        text = self.notices("t2")
+        self.assertIn("memory/project_ttl.md is not linked from any index", text)
+        self.assertIn("memory/index-api.md is written by hand", text)
+        self.write("memory/index-api.md", "# api\n\n- [ttl](./project_ttl.md)\n", turn="t2")
+        self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Six minutes."), turn="t2")
+        self.assertEqual(self.notices("t3"), "")
+
+    def test_cursor_left_behind_by_a_linked_note(self):
+        self.write_and_capture("memory/cursor_api.md", cursor("cursor-api", "PR not opened; NEXT = open it", "See [[quotes-cache-ttl]]."))
+        self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "PR #12 opened."), turn="t2")
+        self.assertIn('cursor note memory/cursor_api.md points to, but not the cursor. It still says: "PR not opened', self.notices("t3"))
+        self.write("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "PR #12 merged."), turn="t3")
+        self.write_and_capture("memory/cursor_api.md", cursor("cursor-api", "PR merged; NEXT = deploy", "See [[quotes-cache-ttl]]."), turn="t3")
+        self.assertEqual(self.notices("t4"), "")
+
+    def test_unlinked_cursor_is_not_mentioned(self):
+        self.write_and_capture("memory/cursor_api.md", cursor("cursor-api", "next step", "Nothing linked."))
+        self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Five minutes."), turn="t2")
+        self.assertEqual(self.notices("t3"), "")
+
+    def test_oversized_note(self):
+        self.write_and_capture("memory/project_log.md", note("deploy-log", "log", "Step done.\n" * 1200))
+        self.assertIn("over the 12 KB note budget", self.notices("t2"))
+
+    def test_misspelled_link_is_named_and_a_future_link_is_not(self):
+        self.write_and_capture("memory/project_ttl.md", note("project-quotes-cache-ttl", "ttl", "Five minutes."))
+        self.write_and_capture("memory/project_rate.md", note("partner-rate-limit", "rate",
+                                                             "See [[quotes-cache-ttl]], [[project_quotes_cache_ttl]] and [[cdn-purge]]."), turn="t2")
+        text = self.notices("t3")
+        self.assertIn("[[quotes-cache-ttl]] should be [[project-quotes-cache-ttl]]", text)
+        self.assertNotIn("project_quotes_cache_ttl]] should", text)
+        self.assertNotIn("cdn-purge", text)
+
+    def test_unattended_session_gets_no_notices(self):
+        (self.home / "memory" / "index-api.md").write_text("# api\n")
+        unattended = dict(HookTestCase.env(self), RECEIPTS_WIKI_ATTENDED="0")
+        self.env = lambda: unattended
+        self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Five minutes."))
+        del self.env
+        self.assertEqual(self.notices("t2"), "")
+
+
 if __name__ == "__main__":
     unittest.main()
