@@ -47,6 +47,7 @@ PLUGIN_ROOT = HERE.parents[1]
 RESULTS = HERE / "results"
 ARMS = ("baseline", "receipts-wiki")
 PHASES = ("teach", "correct", "ask")
+FIND_RULE = "Bash(python3 *receipts-wiki*/scripts/rw.py find *)"
 
 ASK = (
     "Answer from your saved memory only. Do not create, edit or delete any files in this session. "
@@ -127,10 +128,14 @@ def prepare(arm):
     (home / "memory").mkdir(parents=True)
     work.mkdir()
     settings = root / "eval-settings.json"
-    settings.write_text(json.dumps({
+    config = {
         "autoMemoryDirectory": str(home / "memory"),
         "claudeMdExcludes": [str(Path.home() / ".claude" / "CLAUDE.md")],
-    }))
+    }
+    if arm == "receipts-wiki":
+        # As the setup skill leaves it: the memory search command is allowed.
+        config["permissions"] = {"allow": [FIND_RULE]}
+    settings.write_text(json.dumps(config))
     env = dict(os.environ)
     env.pop("RECEIPTS_WIKI_HOME", None)
     if arm == "receipts-wiki":

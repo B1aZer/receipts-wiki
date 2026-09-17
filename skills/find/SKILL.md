@@ -8,7 +8,7 @@ license: MIT
 
 Area indexes follow the working directory, but work crosses directories. This search covers every active note.
 
-`<plugin>` is two directories above this skill's base directory. If `<plugin>/scripts/rw.py` does not exist, tell the user to install the receipts-wiki plugin and stop.
+`<plugin>` is two directories above this skill's base directory. Run the command below directly, without checking first that the file exists; if it fails because `<plugin>/scripts/rw.py` is missing, tell the user to install the receipts-wiki plugin and stop. The setup skill allows the search command in the user's settings; if Claude Code still asks for approval, suggest the user add `Bash(python3 *receipts-wiki*/scripts/rw.py find *)` to `permissions.allow` in `~/.claude/settings.json`.
 
 1. Pick the distinctive words for the topic: product, repository, system, service or person names, error names. Leave out everyday words such as status, check or fix.
 2. Run `python3 <plugin>/scripts/rw.py find <words> --limit 8`. Each result shows the note's path, type, area, the words that matched and its description. A `Cursor for this work` line names the note that holds where the work stands.

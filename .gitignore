@@ -2,4 +2,5 @@ __pycache__/
 *.pyc
 # Raw eval results hold local paths and full session output; the summary tables are kept.
 evals/update_correctness/results/*.jsonl
+evals/drift/results/*.jsonl
 evals/behaviour/results/

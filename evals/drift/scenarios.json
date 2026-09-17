@@ -1,0 +1,189 @@
+{
+  "version": 2,
+  "notes": "Drift scenarios, built from failures seen in the author's memory home on 2026-09-17: a cursor left stating an old position after the work moved (a PR it called 'not coded' had been opened), notes on one workstream written from several directories, 32 notes no index listed, and sessions starting in an unrelated directory. Each step is a separate `claude -p` session in its own directory under work/. Checks read the memory files after the last step; questions are asked from work/elsewhere and graded by fixed strings. 'seed' files are written before the first step (paths relative to the memory directory; {filler} expands to generated unrelated notes). Version 2 (2026-09-17): cursor-follow and cross-dir-duplicate start from a memory with 40 unrelated notes and a MEMORY.md that lists only an index, as in a mature home; in the first smoke run memory held one note, so avoiding a duplicate was trivial.",
+  "scenarios": [
+    {
+      "id": "cursor-follow",
+      "steps": [
+        {
+          "cwd": "orbit-app",
+          "prompt": "Please save to memory where the Orbit export work stands, so a later session can pick it up: the export feature is built on branch orbit-export, the pull request is not opened yet, and the next step is to open the pull request. Today is 2026-09-15."
+        },
+        {
+          "cwd": "orbit-app",
+          "prompt": "Update on the Orbit export work: on 2026-09-17 I opened pull request #318 for it. CI is green. The next step now is to get a reviewer from the platform team. Keep memory current."
+        }
+      ],
+      "questions": [
+        {
+          "kind": "current",
+          "q": "What is the next step on the Orbit export work?",
+          "expect_any": [
+            "reviewer",
+            "review"
+          ]
+        },
+        {
+          "kind": "current",
+          "q": "Is the Orbit export pull request open, and what is its number?",
+          "expect_all": [
+            "318"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "kind": "mentioned",
+          "text": "318"
+        },
+        {
+          "kind": "stale_absent",
+          "texts": [
+            "not opened",
+            "next step is to open",
+            "next step: open",
+            "open the pull request"
+          ]
+        }
+      ],
+      "seed": {
+        "MEMORY.md": "# Memory map\n\nOne index per area; open the one you need.\n\n- ops (service settings): [index-ops](index-ops.md)\n",
+        "index-ops.md": "# ops index\n\n{filler_index}",
+        "{filler}": 40
+      }
+    },
+    {
+      "id": "cross-dir-duplicate",
+      "steps": [
+        {
+          "cwd": "billing-service",
+          "prompt": "Remember this for future sessions: the billing export job runs daily at 02:00 UTC and writes to the S3 bucket acme-exports. Set on 2026-09-01."
+        },
+        {
+          "cwd": "infra-tools",
+          "prompt": "For memory: the billing export job now runs at 03:00 UTC. We moved it on 2026-09-17 because it overlapped with the 02:00 database backup."
+        }
+      ],
+      "questions": [
+        {
+          "kind": "current",
+          "q": "At what time does the billing export job run?",
+          "expect_any": [
+            "03:00",
+            "3:00",
+            "3 am",
+            "3am"
+          ]
+        },
+        {
+          "kind": "retained",
+          "q": "Which S3 bucket does the billing export job write to?",
+          "expect_any": [
+            "acme-exports"
+          ]
+        },
+        {
+          "kind": "history",
+          "q": "When did the billing export job run before, and why was it moved?",
+          "expect_all": [
+            "02:00",
+            "backup"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "kind": "one_note",
+          "text": "billing export"
+        },
+        {
+          "kind": "mentioned",
+          "text": "03:00"
+        },
+        {
+          "kind": "stale_absent",
+          "texts": [
+            "runs daily at 02:00",
+            "runs at 02:00"
+          ]
+        }
+      ],
+      "seed": {
+        "MEMORY.md": "# Memory map\n\nOne index per area; open the one you need.\n\n- ops (service settings): [index-ops](index-ops.md)\n",
+        "index-ops.md": "# ops index\n\n{filler_index}",
+        "{filler}": 40
+      }
+    },
+    {
+      "id": "hand-index",
+      "seed": {
+        "MEMORY.md": "# Memory map\n\nOne index per area; open the one for your directory.\n\n- work (services under work/): [index-work](index-work.md)\n",
+        "index-work.md": "# work index\n\nHand-written. One line per note.\n\n- [search-latency](project_search_latency.md): search p95 latency budget is 300 ms (2026-08-20)\n",
+        "project_search_latency.md": "---\nname: search-latency\ndescription: search p95 latency budget is 300 ms (2026-08-20)\nmetadata:\n  type: project\n  area: work\n---\n\nThe search service p95 latency budget is 300 ms, agreed 2026-08-20.\n"
+      },
+      "steps": [
+        {
+          "cwd": "payments",
+          "prompt": "Save to memory: the payments service has a deploy freeze every Friday from 14:00 CET, agreed with the on-call team on 2026-09-10."
+        }
+      ],
+      "questions": [
+        {
+          "kind": "current",
+          "q": "When is the payments service deploy freeze?",
+          "expect_all": [
+            "friday",
+            "14:00"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "kind": "mentioned",
+          "text": "deploy freeze"
+        },
+        {
+          "kind": "listed",
+          "text": "deploy freeze"
+        }
+      ]
+    },
+    {
+      "id": "find-elsewhere",
+      "seed": {
+        "MEMORY.md": "# Memory map\n\nOne index per area.\n\n- ops: [index-ops](index-ops.md)\n- general: [index-general](index-general.md)\n",
+        "index-ops.md": "# ops index\n\n{filler_index}",
+        "index-general.md": "# general index\n\n- [ledger-ingest-pr](project_ledger_ingest.md): Ledger ingestion consumer fix, PR #742\n- [cursor-ledger](cursor_ledger.md): where the Ledger ingestion work stands\n",
+        "project_ledger_ingest.md": "---\nname: ledger-ingest-pr\ndescription: Ledger ingestion consumer fix, PR #742\nmetadata:\n  type: project\n  area: general\n---\n\nThe Ledger ingestion consumer crashed on events whose group key was not a string. Fix opened as PR #742 on 2026-09-12; CI green. Receipts: pr:742.\n",
+        "cursor_ledger.md": "---\nname: cursor-ledger\ndescription: fix PR open, no reviewer yet; NEXT = ask Dana on the ingestion team to review\nmetadata:\n  type: cursor\n  area: general\n---\n\nWhere the Ledger ingestion work stands (2026-09-16): PR #742 open, no reviewer. Next: ask Dana on the ingestion team to review. Evidence: [[ledger-ingest-pr]].\n",
+        "{filler}": 40
+      },
+      "steps": [],
+      "questions": [
+        {
+          "kind": "current",
+          "q": "What is the pull request number for the Ledger ingestion consumer fix?",
+          "expect_any": [
+            "742"
+          ]
+        },
+        {
+          "kind": "current",
+          "q": "Who should be asked next to review the Ledger ingestion fix?",
+          "expect_any": [
+            "dana"
+          ]
+        },
+        {
+          "kind": "current",
+          "q": "Why did the Ledger ingestion consumer crash?",
+          "expect_any": [
+            "group key"
+          ]
+        }
+      ],
+      "checks": [],
+      "notes": "The cursor's description is shown at session start by receipts-wiki, so the PR number and the crash cause are kept out of it: those answers need the fact note."
+    }
+  ]
+}
