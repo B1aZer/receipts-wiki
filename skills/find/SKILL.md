@@ -8,10 +8,10 @@ license: MIT
 
 Area indexes follow the working directory, but work crosses directories. This search covers every active note.
 
-`<plugin>` is two directories above this skill's base directory. Run the command below directly, without checking first that the file exists; if it fails because `<plugin>/scripts/rw.py` is missing, tell the user to install the receipts-wiki plugin and stop. The setup skill allows the search command in the user's settings; if Claude Code still asks for approval, suggest the user add `Bash(python3 *receipts-wiki*/scripts/rw.py find *)` to `permissions.allow` in `~/.claude/settings.json`.
+The plugin puts the `receipts-wiki` command on PATH. Run the command below directly, without checking first that it exists; if it fails with `command not found`, tell the user to install or enable the receipts-wiki plugin and stop. The setup skill allows the search command in the user's settings; if Claude Code still asks for approval, suggest the user add `Bash(receipts-wiki find *)` to `permissions.allow` in `~/.claude/settings.json`.
 
 1. Pick the distinctive words for the topic: product, repository, system, service or person names, error names. Leave out everyday words such as status, check or fix.
-2. Run `python3 <plugin>/scripts/rw.py find <words> --limit 8`. Each result shows the note's path, type, area, the words that matched and its description. A `Cursor for this work` line names the note that holds where the work stands.
+2. Run `receipts-wiki find <words> --limit 8`. Each result shows the note's path, type, area, the words that matched and its description. A `Cursor for this work` line names the note that holds where the work stands.
 3. Read the cursor first, then the notes the task needs. Results are ranked by word overlap; a match on an everyday word alone is noise, so judge by the description and the matched words.
 4. If nothing useful comes back, try one or two other names for the same thing, then say that memory has nothing on it.
 5. Before creating a note, run this search for its subject. If a note on the same subject exists, update that note. Write a new one only for a separate fact, and link the two with `[[name]]`.

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stable command name for Claude Code permission rules: Bash(receipts-wiki find *).
+# Claude Code puts this folder on PATH while the plugin is enabled.
+exec python3 "$(dirname "$0")/../scripts/rw.py" "$@"

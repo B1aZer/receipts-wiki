@@ -47,7 +47,7 @@ PLUGIN_ROOT = HERE.parents[1]
 RESULTS = HERE / "results"
 ARMS = ("baseline", "receipts-wiki")
 PHASES = ("teach", "correct", "ask")
-FIND_RULE = "Bash(python3 *receipts-wiki*/scripts/rw.py find *)"
+FIND_RULE = "Bash(receipts-wiki find *)"
 
 ASK = (
     "Answer from your saved memory only. Do not create, edit or delete any files in this session. "

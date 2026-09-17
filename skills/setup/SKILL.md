@@ -17,7 +17,7 @@ Paths used below:
 ## 1. Look (read only)
 
 - Does `<home>` exist, and is it the root of a git repository (`git -C <home> rev-parse --show-toplevel` equals `<home>`)? What does it contain?
-- In `~/.claude/settings.json`: the current `autoMemoryDirectory` and `cleanupPeriodDays`, whether `permissions.allow` already contains `Bash(python3 *receipts-wiki*/scripts/rw.py find *)`, and any `hooks.SessionEnd` or `hooks.Stop` entry that already commits memory, which would run twice alongside the plugin.
+- In `~/.claude/settings.json`: the current `autoMemoryDirectory` and `cleanupPeriodDays`, whether `permissions.allow` already contains `Bash(receipts-wiki find *)` or an older rule for the search command (any rule naming `rw.py find`), and any `hooks.SessionEnd` or `hooks.Stop` entry that already commits memory, which would run twice alongside the plugin.
 - In `~/.claude/CLAUDE.md`: an import of `<home>/AGENTS.md`, which would load the rules twice because the plugin injects them.
 - Existing per-project memory under `~/.claude/projects/*/memory/`: file counts per project, and file names that appear in more than one project (ignore `MEMORY.md`).
 - Whether Codex is installed (`~/.codex` exists) and whether `~/.codex/AGENTS.md` already exists.
@@ -29,7 +29,7 @@ Summarise the findings, then list each proposed change on one line and ask the u
 - transcript retention (`cleanupPeriodDays`): keep the current value, 90 days, or another number. Claude Code deletes transcripts older than this; receipts-wiki keeps its own redacted archive of the conversation text.
 - copying existing per-project memory, and the area name for each project;
 - removing a duplicate memory-commit hook or CLAUDE.md import, if you found one;
-- allowing the memory search command in Claude Code (`Bash(python3 *receipts-wiki*/scripts/rw.py find *)` in `permissions.allow`). Claude Code asks before running any script, because it cannot tell what a script does; without this rule every `receipts-wiki:find` search needs an approval, and sessions that run without a person (`claude -p`) cannot search at all. The rule matches only `rw.py find`;
+- allowing the memory search command in Claude Code (`Bash(receipts-wiki find *)` in `permissions.allow`, replacing any older rule naming `rw.py find`). Claude Code asks before running any script, because it cannot tell what a script does; without this rule every `receipts-wiki:find` search needs an approval, and sessions that run without a person (`claude -p`) cannot search at all. The rule matches only `receipts-wiki find`, the plugin's command on PATH, so it has no path or version in it and keeps working after updates;
 - installing the git pre-commit check in `<home>`, which blocks commits that stage a secret value or a note without a name and description, including commits made by other agents or by hand.
 
 ## 3. Write (only what was approved)
