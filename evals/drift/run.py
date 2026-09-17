@@ -15,6 +15,7 @@ Checks read note files only (not MEMORY.md or index-*.md), except `listed`, whic
 Usage:
     python3 evals/drift/run.py --dry-run
     python3 evals/drift/run.py --arm both [--scenario cursor-follow] [--repeat 2] [--keep]
+    python3 evals/drift/run.py --scenarios scenarios-implicit.json --repeat 2
 """
 import argparse
 import importlib.util
@@ -88,6 +89,8 @@ def check(home, spec):
     if kind == "stale_absent":
         hits = []
         for name, body in found.items():
+            if re.search(r"^\s*status:\s*retired", body, re.M):
+                continue
             for line in body.splitlines():
                 if any(t.lower() in line for t in spec["texts"]) and not any(w in line for w in HISTORY_WORDS):
                     hits.append(f"{name}: {line.strip()[:120]}")
@@ -153,6 +156,7 @@ def summarise(results):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--arm", choices=(*base.ARMS, "both"), default="both")
+    parser.add_argument("--scenarios", default="scenarios.json", help="scenario file in this directory, e.g. scenarios-implicit.json")
     parser.add_argument("--scenario", action="append")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--timeout", type=int, default=300)
@@ -160,7 +164,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    scenarios = json.loads((HERE / "scenarios.json").read_text())["scenarios"]
+    scenarios = json.loads((HERE / args.scenarios).read_text())["scenarios"]
     if args.scenario:
         scenarios = [s for s in scenarios if s["id"] in args.scenario]
     arms = base.ARMS if args.arm == "both" else (args.arm,)
@@ -187,7 +191,7 @@ def main():
                     print(f"{scenario['id']:20s} {arm:14s} checks {sum(c['pass'] for c in result['checks'])}/{len(result['checks'])}"
                           f" answers {sum(g['pass'] for g in result['graded'])}/{len(result['graded'])}", flush=True)
     summary = summarise(results)
-    (RESULTS / f"{stamp}-summary.md").write_text(f"# Drift eval {stamp}\n\n{summary}\n", encoding="utf-8")
+    (RESULTS / f"{stamp}-summary.md").write_text(f"# Drift eval {stamp} ({args.scenarios})\n\n{summary}\n", encoding="utf-8")
     print("\n" + summary + f"\n\nfull results: {out}")
     return 0
 

@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "notes": "Implicit upkeep, 2026-09-17. The drift scenarios all named memory in the prompt, and both arms scored 100%. The failure seen in the live home was different: a long session opened a PR as part of other work, nobody said 'update memory', and the cursor kept saying the PR was not coded. Here memory already holds the old state (seeded), the step asks for unrelated work, and the change is mentioned in passing. No prompt mentions memory. Checks read the memory files; a retired note does not count as stale.",
+  "scenarios": [
+    {
+      "id": "implicit-cursor",
+      "seed": {
+        "MEMORY.md": "# Memory map\n\nOne index per area; open the one you need.\n\n- ops (service settings): [index-ops](index-ops.md)\n- orbit (Orbit app): [index-orbit](index-orbit.md)\n",
+        "index-ops.md": "# ops index\n\n{filler_index}",
+        "index-orbit.md": "# orbit index\n\n- [orbit-export-feature](project_orbit_export.md): Orbit CSV export feature, built on branch orbit-export (2026-09-15)\n- [cursor-orbit](cursor_orbit.md): where the Orbit export work stands\n",
+        "project_orbit_export.md": "---\nname: orbit-export-feature\ndescription: Orbit CSV export feature, built on branch orbit-export (2026-09-15)\nmetadata:\n  type: project\n  area: orbit\n---\n\nThe Orbit CSV export feature is built on branch orbit-export (2026-09-15). Exports are capped at 50,000 rows.\n",
+        "cursor_orbit.md": "---\nname: cursor-orbit\ndescription: Orbit export built, pull request not opened yet; NEXT = open the pull request\nmetadata:\n  type: cursor\n  area: orbit\n---\n\nWhere the Orbit export work stands (2026-09-15): built on branch orbit-export, pull request not opened yet. Next: open the pull request. Detail: [[orbit-export-feature]].\n",
+        "{filler}": 40
+      },
+      "steps": [
+        {"cwd": "orbit-app", "prompt": "Write a short release note for the Orbit CSV export feature into RELEASE_NOTES.md in this directory: what it does and the 50,000-row cap. By the way, I opened pull request #318 for it this morning (2026-09-17) and CI is green, so the next thing is finding a reviewer on the platform team."}
+      ],
+      "questions": [
+        {"kind": "current", "q": "What is the next step on the Orbit export work?", "expect_any": ["reviewer", "review"]},
+        {"kind": "current", "q": "What is the number of the Orbit export pull request?", "expect_any": ["318"]},
+        {"kind": "retained", "q": "What is the row cap on Orbit CSV exports?", "expect_any": ["50,000", "50000", "50k"]}
+      ],
+      "checks": [
+        {"kind": "mentioned", "text": "318"},
+        {"kind": "stale_absent", "texts": ["not opened", "open the pull request"]}
+      ]
+    },
+    {
+      "id": "implicit-fact-change",
+      "seed": {
+        "MEMORY.md": "# Memory map\n\nOne index per area; open the one you need.\n\n- ops (service settings): [index-ops](index-ops.md)\n- billing (billing service): [index-billing](index-billing.md)\n",
+        "index-ops.md": "# ops index\n\n{filler_index}",
+        "index-billing.md": "# billing index\n\n- [billing-export-schedule](project_billing_export.md): billing export job runs daily at 02:00 UTC, writes to s3 acme-exports (2026-09-01)\n",
+        "project_billing_export.md": "---\nname: billing-export-schedule\ndescription: billing export job runs daily at 02:00 UTC, writes to s3 acme-exports (2026-09-01)\nmetadata:\n  type: project\n  area: billing\n---\n\nThe billing export job runs daily at 02:00 UTC and writes to the S3 bucket acme-exports. Set 2026-09-01.\n",
+        "{filler}": 40
+      },
+      "steps": [
+        {"cwd": "infra-tools", "prompt": "Create cron.txt in this directory with one crontab line that runs /opt/billing/export.sh daily at 03:00 UTC. That's the billing export job's new time: we moved it today, 2026-09-17, because at 02:00 it overlapped with the database backup."}
+      ],
+      "questions": [
+        {"kind": "current", "q": "At what time does the billing export job run?", "expect_any": ["03:00", "3:00", "3 am", "3am"]},
+        {"kind": "retained", "q": "Which S3 bucket does the billing export job write to?", "expect_any": ["acme-exports"]}
+      ],
+      "checks": [
+        {"kind": "one_note", "text": "billing export"},
+        {"kind": "mentioned", "text": "03:00"},
+        {"kind": "stale_absent", "texts": ["runs daily at 02:00", "runs at 02:00"]}
+      ]
+    },
+    {
+      "id": "implicit-elsewhere",
+      "seed": {
+        "MEMORY.md": "# Memory map\n\nOne index per area.\n\n- ops: [index-ops](index-ops.md)\n- general: [index-general](index-general.md)\n",
+        "index-ops.md": "# ops index\n\n{filler_index}",
+        "index-general.md": "# general index\n\n- [ledger-ingest-pr](project_ledger_ingest.md): Ledger ingestion consumer fix, PR #742\n- [cursor-ledger](cursor_ledger.md): where the Ledger ingestion work stands\n",
+        "project_ledger_ingest.md": "---\nname: ledger-ingest-pr\ndescription: Ledger ingestion consumer fix, PR #742\nmetadata:\n  type: project\n  area: general\n---\n\nThe Ledger ingestion consumer crashed on events whose group key was not a string. Fix opened as PR #742 on 2026-09-12; CI green.\n",
+        "cursor_ledger.md": "---\nname: cursor-ledger\ndescription: Ledger fix PR #742 open, no reviewer yet; NEXT = ask Dana on the ingestion team to review\nmetadata:\n  type: cursor\n  area: general\n---\n\nWhere the Ledger ingestion work stands (2026-09-16): PR #742 open, no reviewer yet. Next: ask Dana on the ingestion team to review. Evidence: [[ledger-ingest-pr]].\n",
+        "{filler}": 40
+      },
+      "steps": [
+        {"cwd": "indexer", "prompt": "Draft a two-sentence Slack message to Dana, saved as thanks.md in this directory, thanking her for reviewing and merging the Ledger ingestion fix (PR #742). It was merged today, 2026-09-17, so that work is done."}
+      ],
+      "questions": [
+        {"kind": "current", "q": "What is the status of the Ledger ingestion fix pull request?", "expect_any": ["merged"]},
+        {"kind": "retained", "q": "Why did the Ledger ingestion consumer crash?", "expect_any": ["group key"]}
+      ],
+      "checks": [
+        {"kind": "stale_absent", "texts": ["no reviewer", "ask dana"]}
+      ]
+    }
+  ]
+}
