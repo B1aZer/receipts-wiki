@@ -70,6 +70,7 @@ If you develop the plugin, keep one editing clone and treat the pushed repo as t
 ```
 git clone git@github.com:B1aZer/receipts-wiki.git   # your editing home, e.g. ~/Sites/receipts-wiki
 # edit, run the tests (python3 -m unittest discover -s tests), then:
+# bump "version" in .claude-plugin/plugin.json: `plugin update` compares versions, not commits
 git commit -am "..." && git push
 claude plugin marketplace update receipts-wiki       # refresh the managed checkout from your push
 claude plugin update receipts-wiki                   # install it into the run cache
