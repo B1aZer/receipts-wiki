@@ -444,6 +444,15 @@ class TurnTests(HookTestCase):
         self.stop(turn="t2")
         self.assertIsNone(self.write("memory/project_quotes_cache_v2.md", note("quotes-cache-ttl-cdn", "quotes cache ttl five minutes cdn", "Newer."), turn="t3"))
 
+    def test_hint_names_a_note_on_the_same_topic_with_different_wording(self):
+        memory = self.home / "memory"
+        for i, topic in enumerate(["billing export", "search ranking", "login rate limit", "image resize"]):
+            (memory / f"project_other{i}.md").write_text(note(f"other-{i}", topic, "Unrelated body."))
+        self.write_and_capture("memory/feedback_plan_docs.md", note("plan-docs", "plans are markdown docs in the repo docs folder, not plan mode", "Body."), turn="t1")
+        hint = self.write("memory/feedback_plan_as_doc.md", note("plan-as-doc", "write plans as markdown docs in docs folder", "Body."), turn="t2")
+        self.assertIn("Existing notes on the same topic: memory/feedback_plan_docs.md", hint["hookSpecificOutput"]["additionalContext"])
+        self.assertNotIn("project_other", hint["hookSpecificOutput"]["additionalContext"])
+
     def test_no_hint_for_weak_overlap(self):
         self.write_and_capture("memory/project_quotes_cache.md", note("quotes-cache-ttl", "quotes cache ttl five minutes", "Old."), turn="t1")
         self.assertIsNone(self.write("memory/project_cdn.md", note("cdn-edge", "quotes cdn edge purge", "New."), turn="t2"))

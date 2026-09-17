@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import archive, checks, config, frontmatter, gitlog, indexer, related, secrets, state, turns
+from . import archive, checks, config, frontmatter, gitlog, indexer, related, secrets, state, topics, turns
 
 REVISION = re.compile(r"^(HEAD|ORIG_HEAD|FETCH_HEAD|@)([~^]\d*)*$|^[0-9a-f]{7,40}([~^]\d*)*$")
 RESET_MODES = {"--hard", "--soft", "--mixed", "--merge", "--keep"}
@@ -286,10 +286,13 @@ def hook_capture(payload):
     state.touch_read(rel)
 
     if is_new and indexer.is_note(rel) and config.attended():
-        strong, _ = related.candidates(home, rel, path.read_text(encoding="utf-8", errors="replace"))
-        if strong:
-            _emit(_context("PostToolUse", "Possible duplicate or contradiction: " + ", ".join(strong)
-                           + ". If this note changes what they say, update them or add a Supersedes line; otherwise leave them unchanged."))
+        text = path.read_text(encoding="utf-8", errors="replace")
+        strong, _ = related.candidates(home, rel, text)
+        matches = list(dict.fromkeys(strong + topics.same_topic(home, rel, text)))
+        if matches:
+            _emit(_context("PostToolUse", "Existing notes on the same topic: " + ", ".join(matches)
+                           + ". Read them. If this note repeats one, put the content in that note and retire this one; "
+                           "if it changes what one says, update that note with a Supersedes line."))
 
 
 def _end_turn(payload):

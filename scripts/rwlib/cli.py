@@ -5,7 +5,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, state, turns
+from . import config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, state, topics, turns
 
 HOOK_MARK = "receipts-wiki pre-commit hook"
 HOOK_SCRIPT = """#!/bin/sh
@@ -135,6 +135,25 @@ def history(home, target, patch=False):
     output = gitlog.git(home, *args, "--", rel).stdout.strip()
     print(f"# History of {rel}\n")
     print(output or "(no commits)")
+    return 0
+
+
+def find(home, query, limit=8):
+    """Notes ranked against the query, whatever their area, with the cursors that link them."""
+    corpus = topics.Corpus(home)
+    ranked = corpus.rank(query, limit=limit)
+    if not ranked:
+        print(f"no note matches {query!r}")
+        return 0
+    query_words = set(topics.words(query))
+    memory = Path(home) / "memory"
+    for score, item in ranked:
+        matched = ", ".join(sorted(query_words & topics.note_words(item)))
+        print(f"{score:5.1f}  {memory / item['file']}")
+        print(f"       {item['type'] or 'note'}, area {item['area']}, matched: {matched}")
+        print(f"       {item['description'] or item['name']}")
+    for cursor in topics.cursors_linking(corpus, [item for _, item in ranked]):
+        print(f"\nCursor for this work: {memory / cursor['file']}: {cursor['description']}")
     return 0
 
 

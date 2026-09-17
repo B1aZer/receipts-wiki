@@ -19,6 +19,7 @@ Commands:
     rw.py precommit                 (run by the git pre-commit hook)
     rw.py install-git-hook
     rw.py history <note> [--patch]
+    rw.py find <words...> [--limit N]
     rw.py recall <query...> [--limit N]
     rw.py resume [<session>] [--cwd PATH] [--limit N]
     rw.py lint [--stale-days N] [--unread-days N]
@@ -69,6 +70,9 @@ def main(argv):
     show = commands.add_parser("history", help="show the commits of one note")
     show.add_argument("note")
     show.add_argument("--patch", action="store_true")
+    lookup = commands.add_parser("find", help="rank memory notes against words, whatever their area")
+    lookup.add_argument("query", nargs="+")
+    lookup.add_argument("--limit", type=int, default=8)
     search = commands.add_parser("recall", help="search archived conversations")
     search.add_argument("query", nargs="+")
     search.add_argument("--limit", type=int, default=5)
@@ -92,6 +96,8 @@ def main(argv):
         return cli.install_git_hook(home, Path(__file__).resolve())
     if args.command == "history":
         return cli.history(home, args.note, patch=args.patch)
+    if args.command == "find":
+        return cli.find(home, " ".join(args.query), limit=args.limit)
     if args.command == "recall":
         return cli.recall(home, " ".join(args.query), limit=args.limit)
     if args.command == "resume":

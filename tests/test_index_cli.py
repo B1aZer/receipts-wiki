@@ -179,6 +179,20 @@ class CommandTests(HookTestCase):
         self.assertIn("rejected(quotes-cache-ttl): the API cache TTL caused stale quotes", output)
         self.assertLess(output.index("add quotes-cache-ttl"), output.index("supersede quotes-cache-ttl"))
 
+    def test_find_ranks_notes_across_areas_and_names_the_cursor(self):
+        memory = self.home / "memory"
+        (memory / "project_ingest.md").write_text(note("posthog-ingestion", "PostHog ingestion consumer crash", "Kafka partition stalls on a poison pill.").replace("area: api", "area: general"))
+        (memory / "project_ttl.md").write_text(note("quotes-cache-ttl", "quotes cache TTL", "Five minutes."))
+        (memory / "cursor_posthog.md").write_text("---\nname: cursor-posthog\ndescription: PR open; NEXT = find a reviewer\n"
+                                                 "metadata:\n  type: cursor\n  area: general\n---\n\nSee [[posthog-ingestion]].\n")
+        output = self.cli("find", "kafka", "poison", "pill")
+        memory = memory.resolve()
+        self.assertIn(str(memory / "project_ingest.md"), output)
+        self.assertIn("area general, matched: kafka, pill, poison", output)
+        self.assertNotIn("project_ttl.md", output)
+        self.assertIn(f"Cursor for this work: {memory / 'cursor_posthog.md'}: PR open; NEXT = find a reviewer", output)
+        self.assertIn("no note matches", self.cli("find", "zebra"))
+
     def test_recall_finds_archived_message(self):
         path = self.tmp / "t.jsonl"
         path.write_text("".join(json.dumps(record) + "\n" for record in BASE))

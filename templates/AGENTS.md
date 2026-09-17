@@ -6,9 +6,9 @@ Template from receipts-wiki (https://github.com/B1aZer/receipts-wiki). Replace t
 
 ## Memory
 
-- Shared memory lives in `~/.agents/memory/`. `MEMORY.md` lists every note, or one index per area once memory is large; open only the notes the task needs. The folder is outside your working directories, so find notes through those lists; don't list or search the folder with shell commands.
+- Shared memory lives in `~/.agents/memory/`. `MEMORY.md` lists every note, or one index per area once memory is large; open only the notes the task needs. The folder is outside your working directories, so find notes through those lists; don't list or search the folder with shell commands. Work crosses directories: when a task touches a topic earlier sessions may have covered, and before creating a note, use the `receipts-wiki:find` skill, which searches every note and names the cursor for that work.
 - A note records what was true when it was written. Before acting on one, check the files, flags and numbers it mentions.
-- One fact per note, with frontmatter `name`, a one-line `description`, `metadata.type` and `metadata.area`. Update the existing note rather than adding a near-duplicate.
+- One fact per note, with frontmatter `name`, a one-line `description`, `metadata.type` and `metadata.area`. Update the existing note rather than adding a near-duplicate; when a new note gets an "Existing notes on the same topic" hint, read those first.
 - Keep one `cursor` note per active area (`metadata.type: cursor`) with the current position and the next action; update it in place as you work, so a lost session can be resumed. It is the one note that holds task state.
 - When a fact changes, rewrite it and add the line `Supersedes (YYYY-MM-DD): <old claim>. <evidence>`. When a note no longer holds at all, set `metadata.status: retired` and add the Supersedes line. Never delete, rename or move memory files, and never change them with shell commands. Never reset, rebase or amend memory history.
 - Project and decision notes cite receipts (`Receipts: commit:<hash>, query:<id>, file:<path>`) and use absolute dates. A decision that should not be reopened lightly gets `Reopen if: <evidence>`.

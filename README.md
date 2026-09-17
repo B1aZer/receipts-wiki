@@ -10,7 +10,7 @@ Status: 0.3.0-dev, in daily use by its author since 2026-09-13. First eval resul
 |---|---|
 | [IDEA.md](IDEA.md) | The idea file. Paste it into any agent to build your own version. |
 | [hooks/hooks.json](hooks/hooks.json), [scripts/rw.py](scripts/rw.py) | The Claude Code plugin: hooks and a small command line |
-| [skills/](skills/) | Four manual skills: `setup`, `recall`, `resume` (recover a lost session), `lint-review` |
+| [skills/](skills/) | Five skills: `find` (search every note by topic; the agent may use it on its own), and the manual `setup`, `recall`, `resume` (recover a lost session), `lint-review` |
 | [templates/](templates/) | `AGENTS.md` (guardrails for every agent) and `WRITING.md` (how to write a note) |
 | [docs/](docs/) | [COMMIT-SPEC.md](docs/COMMIT-SPEC.md), [PLAN.md](docs/PLAN.md), [manual-install.md](docs/manual-install.md) |
 | [evals/](evals/) | A no-network functional eval, model-behaviour checks and the update-correctness eval |
@@ -33,7 +33,7 @@ In sessions nobody is watching, such as `claude -p` or SDK runs (Claude Code set
 
 A turn that does not touch memory costs one short hook run and no commit. Nothing waits for the session to end, so a session can stay open for days across unrelated tasks.
 
-On request, `python3 scripts/rw.py` gives `history <note>` (every commit of one note), `recall <words>` (search the conversation archive), `resume [<session>|--cwd <path>]` (recover a lost session's decisions and next actions from the archive), `lint` (problems, warnings and forgetting candidates), `build-index`, `record --agent <name>` (commit changes made outside the hooks, such as an import), and `install-git-hook` (a git pre-commit check in the memory repository that blocks any commit staging a secret value or a note without a name and description, including commits made by other agents or by hand). The `lint-review` skill walks through the lint report with you and changes only what you approve.
+On request, `python3 scripts/rw.py` gives `find <words>` (rank every note against the words, whatever its area), `history <note>` (every commit of one note), `recall <words>` (search the conversation archive), `resume [<session>|--cwd <path>]` (recover a lost session's decisions and next actions from the archive), `lint` (problems, warnings and forgetting candidates), `build-index`, `record --agent <name>` (commit changes made outside the hooks, such as an import), and `install-git-hook` (a git pre-commit check in the memory repository that blocks any commit staging a secret value or a note without a name and description, including commits made by other agents or by hand). The `lint-review` skill walks through the lint report with you and changes only what you approve.
 
 A **cursor note** (`metadata.type: cursor`, one per area) holds the current position and next action of a workstream. It is the one note that may carry task state, it is overwritten in place rather than corrected forward, and it is listed under "Where things stand" in `MEMORY.md` and shown at session start. When a session ends without warning, the `resume` command and skill recover what the cursor did not yet capture from the conversation archive and draft it with you. See [templates/WRITING.md](templates/WRITING.md).
 

@@ -88,6 +88,10 @@ Lint accepts receipts cited in the text too: a commit hash, a file path, a trans
 - A decision that should not be reopened lightly carries `Reopen if: <evidence that would reopen it>`.
 - Retire instead of deleting. When a correction makes a whole note obsolete, set `metadata.status: retired` and add the `Supersedes` line. A forgetting candidate from lint is retired only when the user agrees. Retired notes leave `MEMORY.md` and the indexes, and stay in their file and in history. Never delete, rename or move memory files, and never change them with shell commands: the hooks record only edits made with the Write and Edit tools.
 
+## Finding notes by topic
+
+An area index follows the working directory, so a session that starts elsewhere does not see it. The `find` skill (`rw.py find <words>`) ranks every active note against the words you give it, with BM25 over the body and a boost for the name and description, and names the cursor note that links the results. Use it when a task touches a topic earlier sessions may have covered, and before creating a note. Put the distinctive names (product, repository, system) in the `description`, since that is what the search weighs most.
+
 ## Indexes
 
 Indexes are generated from frontmatter when your turn's changes are committed: one `index-<area>.md` per area, and a block inside `MEMORY.md` that lists every active note while `MEMORY.md` stays under 150 lines and 17 KB, and lists the area indexes once it would not. Find notes through these lists; the memory folder is usually outside the session's working directories, so listing or searching it with shell commands is blocked. Do not edit index files (the gate blocks it) or the generated block, and do not add your own pointer lines to `MEMORY.md`; set the note's `area`, `name` and `description` instead. Text in `MEMORY.md` outside the block is yours. An area index stays under the same budget; past that, split the area.
@@ -98,5 +102,6 @@ An index file without the generated line (for example one written before receipt
 
 - Before a write, it is blocked when the file changed after you read it, or when it contains a secret value, injected system text or a relative date. Fix the cause and write again; do not route around the block.
 - When your turn ends, everything you changed in memory during the turn is committed together with this session's id, and the indexes are regenerated in the same commit. Nothing is printed and there is nothing to check afterwards. The commit's reasoning lines come from your `Why:`, `Supersedes` and `Reopen if:` lines, so write them with care: they are the history.
+- When a new note matches existing notes on the same topic, by name and description overlap or by search score, the hook names them. Read them and update one instead of keeping two notes on one subject.
 - After the commit, the turn's notes are checked and the result reaches you with your next prompt: a note that no index links, a cursor that links a note you changed but was not itself updated, a note over 12 KB, and a `[[link]]` that misspells an existing note's name. A link to a note that does not exist yet is fine. Act on these before continuing.
 - Never reset, rebase, amend or check out old commits to change memory. Correct forward.
