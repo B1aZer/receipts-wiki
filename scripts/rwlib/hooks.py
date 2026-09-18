@@ -79,6 +79,7 @@ def hook_gate(payload):
     tool_input = _tool_input(payload)
     rel = config.tracked(tool_input.get("file_path"))
     if not rel:
+        _note_new_doc(payload, tool_input.get("file_path"))
         return
     path = config.home() / rel
     proposed = _proposed_text(tool_input)
@@ -295,6 +296,21 @@ def hook_capture(payload):
                            "if it changes what one says, update that note with a Supersedes line."))
 
 
+def _note_new_doc(payload, file_path):
+    """Before a Write creates a markdown file outside memory, remember it for the end-of-turn check."""
+    if payload.get("tool_name") != "Write" or not file_path or not config.attended():
+        return
+    home = config.home()
+    if not home.exists() or Path(file_path).exists() or not checks.is_doc_candidate(file_path, home):
+        return
+    session = payload.get("session_id")
+    data = state.load(session)
+    docs = data.setdefault("new_docs", [])
+    if file_path not in docs:
+        docs.append(file_path)
+        state.save(session, data)
+
+
 def _end_turn(payload):
     home = config.home()
     if not home.exists():
@@ -310,6 +326,11 @@ def _end_turn(payload):
                             cwd=payload.get("cwd"), transcript=payload.get("transcript_path"))
         if config.attended():
             data.setdefault("agent_notices", []).extend(f"receipts-wiki: {notice}" for notice in checks.turn_notices(home, written))
+    docs = data.pop("new_docs", None) or []
+    if docs and config.attended():
+        unnamed = checks.unnamed_docs(home, docs)
+        if unnamed:
+            data.setdefault("agent_notices", []).append("receipts-wiki: " + checks.docs_notice(unnamed))
     data["turn_stopped"] = time.time()
     transcript_path = payload.get("transcript_path")
     if transcript_path and config.attended():

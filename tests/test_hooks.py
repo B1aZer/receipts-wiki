@@ -593,6 +593,35 @@ class TurnCheckTests(HookTestCase):
         self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Five minutes."), turn="t2")
         self.assertEqual(self.notices("t3"), "")
 
+    def create_doc(self, path, text, turn):
+        """A Write that creates a markdown file outside memory, as the agent's tools would do it."""
+        self.hook("gate", self.payload("Write", path, turn=turn, content=text))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        self.stop(turn=turn)
+
+    def test_new_document_no_note_names(self):
+        doc = self.tmp / "project" / "interview-questions.md"
+        self.create_doc(doc, "# Questions\n", "t1")
+        text = self.notices("t2")
+        self.assertIn(f"your last turn created {doc}, and no memory note names it", text)
+        self.assertEqual(self.notices("t2"), "")
+
+    def test_document_named_by_a_note_or_edited_is_left_alone(self):
+        doc = self.tmp / "project" / "plan.md"
+        self.hook("gate", self.payload("Write", doc, turn="t1", content="# Plan"))
+        doc.parent.mkdir(parents=True, exist_ok=True)
+        doc.write_text("# Plan")
+        self.write_and_capture("memory/project_plan.md", note("plan", "the plan", "Plan lives in project/plan.md."), turn="t1")
+        self.assertNotIn("your last turn created", self.notices("t2"))
+        self.create_doc(doc, "# Plan v2", "t2")
+        self.assertNotIn("your last turn created", self.notices("t3"))
+
+    def test_scratch_and_non_markdown_files_are_ignored(self):
+        self.create_doc(self.tmp / "scratchpad" / "notes.md", "x", "t1")
+        self.create_doc(self.tmp / "project" / "script.py", "x", "t2")
+        self.assertEqual(self.notices("t3"), "")
+
     def test_long_cursor_description(self):
         self.write_and_capture("memory/cursor_api.md", cursor("cursor-api", "PR open; " + "detail " * 40 + "NEXT = review", "Body."))
         self.assertIn("keep it under 250", self.notices("t2"))

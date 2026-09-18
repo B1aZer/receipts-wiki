@@ -87,3 +87,39 @@ def turn_notices(home, rels):
 def _bare(text):
     """A name without its type prefix, so project-x, project_x and x compare equal."""
     return re.sub(r"^(project|feedback|reference|user|cursor)-", "", gitlog.slug(text))
+
+
+# Documents written outside memory: a session can finish a piece of research, leave it in a file, and never tell
+# memory it exists. On the author's machine 42 of 78 new markdown files from one week were named by no note.
+SKIP_DOC_PARTS = ("/scratchpad/", "/.claude/", "/node_modules/", "/.git/")
+
+
+def is_doc_candidate(path, home):
+    """A markdown file outside the memory home and outside scratch or tool folders."""
+    text = str(path)
+    if not text.endswith(".md") or any(part in text for part in SKIP_DOC_PARTS):
+        return False
+    try:
+        Path(text).resolve().relative_to(Path(home).resolve())
+        return False
+    except ValueError:
+        return True
+
+
+def unnamed_docs(home, paths):
+    """Of the given document paths, those that still exist and that no memory file names."""
+    memory = Path(home) / "memory"
+    corpus = ""
+    for path in memory.glob("*.md"):
+        try:
+            corpus += path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+    return [p for p in paths if Path(p).exists() and Path(p).name not in corpus]
+
+
+def docs_notice(paths):
+    shown = ", ".join(paths[:5]) + (f" and {len(paths) - 5} more" if len(paths) > 5 else "")
+    return (f"your last turn created {shown}, and no memory note names {'it' if len(paths) == 1 else 'them'}. If a later session "
+            "should find one, add a line naming the file and what it holds to the note for that work (`receipts-wiki find "
+            "<topic>` shows which note); skip scratch files.")
