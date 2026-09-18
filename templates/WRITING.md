@@ -90,6 +90,8 @@ Lint accepts receipts cited in the text too: a commit hash, a file path, a trans
 
 ## Finding notes by topic
 
+Session start shows the active cursors and a warm list: the notes read or changed in the last 30 days. Everything else is found the same way it always was, so a note missing from that list is not archived or demoted, only quiet.
+
 An area index follows the working directory, so a session that starts elsewhere does not see it. The `find` skill (`receipts-wiki find <words>`) ranks every active note against the words you give it, with BM25 over the body and a boost for the name and description, and names the cursor note that links the results. Use it when a task touches a topic earlier sessions may have covered, and before creating a note. Put the distinctive names (product, repository, system) in the `description`, since that is what the search weighs most.
 
 ## Indexes

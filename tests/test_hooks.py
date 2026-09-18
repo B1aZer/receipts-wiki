@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from datetime import date
 from pathlib import Path
 
 RW = Path(__file__).resolve().parents[1] / "scripts" / "rw.py"
@@ -500,6 +501,60 @@ class TurnTests(HookTestCase):
 
 def cursor(name, description, body):
     return f"---\nname: {name}\ndescription: {description}\nmetadata:\n  type: cursor\n  area: api\n---\n\n{body}\n"
+
+
+class WarmListTests(HookTestCase):
+    """Warmth is use, not age: reads and edits inside the window, cursors and retired notes left out."""
+
+    @staticmethod
+    def warm_module():
+        import sys
+        sys.path.insert(0, str(RW.parent))
+        from rwlib import warm
+        return warm
+
+    def recent(self, **kwargs):
+        return self.warm_module().recent(self.home, today=date(2026, 9, 20), **kwargs)
+
+    def seed_reads(self, stamps):
+        (self.home / ".state").mkdir(exist_ok=True)
+        (self.home / ".state" / "last_read.json").write_text(json.dumps(stamps))
+        os.environ["RECEIPTS_WIKI_HOME"] = str(self.home)
+        self.addCleanup(os.environ.pop, "RECEIPTS_WIKI_HOME", None)
+
+    def test_read_recently_is_warm_and_an_old_read_is_not(self):
+        memory = self.home / "memory"
+        (memory / "project_hot.md").write_text(note("hot-note", "read this week", "Body."))
+        (memory / "project_cold.md").write_text(note("cold-note", "read in August", "Body."))
+        self.seed_reads({"memory/project_hot.md": "2026-09-19", "memory/project_cold.md": "2026-08-01"})
+        self.assertEqual([item["name"] for _, item in self.recent()], ["hot-note"])
+
+    def test_cursor_and_retired_notes_are_left_out(self):
+        memory = self.home / "memory"
+        (memory / "cursor_api.md").write_text(note("cursor-api", "next step", "Body.").replace("type: project", "type: cursor"))
+        (memory / "project_done.md").write_text(note("done-note", "finished", "Body.", extra="  status: retired\n"))
+        (memory / "project_live.md").write_text(note("live-note", "current", "Body."))
+        self.seed_reads({f"memory/{name}": "2026-09-19" for name in ("cursor_api.md", "project_done.md", "project_live.md")})
+        self.assertEqual([item["name"] for _, item in self.recent()], ["live-note"])
+
+    def test_a_committed_note_is_warm_without_a_read_and_reaches_session_start(self):
+        self.write_and_capture("memory/project_edited.md", note("edited-note", "changed in this turn", "Body."))
+        self.seed_reads({})
+        self.assertIn("edited-note", [item["name"] for _, item in self.recent()])
+        context = self.hook("session-start", {"session_id": "s2"})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Worked on lately", context)
+        self.assertIn("edited-note", context)
+
+    def test_block_stays_within_its_budget(self):
+        for i in range(12):
+            (self.home / "memory" / f"project_{i}.md").write_text(note(f"note-{i}", "d" * 120, "Body."))
+        self.seed_reads({f"memory/project_{i}.md": "2026-09-19" for i in range(12)})
+        warm = self.warm_module()
+        self.assertEqual(len(warm.recent(self.home, today=date(2026, 9, 20), limit=5)), 5)
+        block = warm.block(self.home, budget=400, today=date(2026, 9, 20))
+        body = block.split(chr(10), 1)[1]
+        self.assertLessEqual(len(body), 400 + 160)
+        self.assertTrue(body.startswith("- [note-"))
 
 
 class TurnCheckTests(HookTestCase):

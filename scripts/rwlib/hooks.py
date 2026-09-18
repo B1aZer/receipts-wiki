@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import archive, checks, config, frontmatter, gitlog, indexer, related, secrets, state, topics, turns
+from . import archive, checks, config, frontmatter, gitlog, indexer, related, secrets, state, topics, turns, warm
 
 REVISION = re.compile(r"^(HEAD|ORIG_HEAD|FETCH_HEAD|@)([~^]\d*)*$|^[0-9a-f]{7,40}([~^]\d*)*$")
 RESET_MODES = {"--hard", "--soft", "--mixed", "--merge", "--keep"}
@@ -490,6 +490,9 @@ def hook_session_start(payload):
         pointers = _cursor_pointers(home)
         if pointers:
             parts.append("Where things stand (open the cursor note for the area you're working in):\n" + pointers)
+        lately = warm.block(home)
+        if lately:
+            parts.append(lately)
 
     if not config.attended():
         parts = []
