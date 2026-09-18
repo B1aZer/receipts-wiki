@@ -9,6 +9,8 @@ from pathlib import Path
 from . import gitlog, indexer
 
 MAX_NOTE_BYTES = 12000
+# A cursor's description is shown at every session start and in MEMORY.md, so it must stay one line.
+MAX_CURSOR_DESCRIPTION = 250
 WIKILINK = re.compile(r"\[\[([^\]|#]+)")
 
 
@@ -65,6 +67,9 @@ def turn_notices(home, rels):
                     notices.append(f"you changed {rel}, which cursor note memory/{cursor['file']} points to, but not the cursor. "
                                    f"It still says: \"{cursor['description']}\". If that is no longer where the work stands, "
                                    "rewrite the cursor in place.")
+        if item["type"] == "cursor" and len(item["description"]) > MAX_CURSOR_DESCRIPTION:
+            notices.append(f"{rel}'s description is {len(item['description'])} characters; every session start shows it, so keep it "
+                           f"under {MAX_CURSOR_DESCRIPTION}: where the work stands and the next action. Move the rest into the note's body.")
         size = len(item["text"].encode("utf-8"))
         if size > MAX_NOTE_BYTES:
             notices.append(f"{rel} is {size // 1000} KB, over the {MAX_NOTE_BYTES // 1000} KB note budget, so it reads as a log. "

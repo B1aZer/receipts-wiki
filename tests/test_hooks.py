@@ -593,6 +593,12 @@ class TurnCheckTests(HookTestCase):
         self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Five minutes."), turn="t2")
         self.assertEqual(self.notices("t3"), "")
 
+    def test_long_cursor_description(self):
+        self.write_and_capture("memory/cursor_api.md", cursor("cursor-api", "PR open; " + "detail " * 40 + "NEXT = review", "Body."))
+        self.assertIn("keep it under 250", self.notices("t2"))
+        self.write_and_capture("memory/cursor_api.md", cursor("cursor-api", "PR open; NEXT = review", "Body."), turn="t2")
+        self.assertEqual(self.notices("t3"), "")
+
     def test_oversized_note(self):
         self.write_and_capture("memory/project_log.md", note("deploy-log", "log", "Step done.\n" * 1200))
         self.assertIn("over the 12 KB note budget", self.notices("t2"))

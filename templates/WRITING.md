@@ -24,7 +24,7 @@ A cursor is not a fact, so it is exempt from three of the rules above:
 - It is overwritten in place as the work moves. Do not add a `Supersedes` line for a cursor; git history keeps the earlier positions.
 - It carries no receipts of its own. It points at the fact notes and receipts that hold the evidence.
 
-Frontmatter: `metadata.type: cursor` and `metadata.area: <area>`. Name it `cursor-<area>`. The `description` is the one-line summary the session-start hook shows, so put the next action there. When a skill or command performs that next step, name it, so a new session can run it instead of working out what to invoke (for example, `Next: run the resume skill`, or `Next: /code-review then push`). Cursor notes are listed under "Where things stand" in `MEMORY.md`, not in the area index. When a workstream is finished or abandoned, set `metadata.status: retired`.
+Frontmatter: `metadata.type: cursor` and `metadata.area: <area>`. Name it `cursor-<area>`. The `description` is the one-line summary the session-start hook shows, so put the next action there, and keep it under 250 characters: it is loaded into every session and repeated in `MEMORY.md`. Deploy ids, verification details and build steps belong in the body. When a skill or command performs that next step, name it, so a new session can run it instead of working out what to invoke (for example, `Next: run the resume skill`, or `Next: /code-review then push`). Cursor notes are listed under "Where things stand" in `MEMORY.md`, not in the area index. When a workstream is finished or abandoned, set `metadata.status: retired`.
 
 Example:
 
