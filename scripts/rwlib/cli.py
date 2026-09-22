@@ -354,6 +354,24 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False):
     # The same per-note rules the end-of-turn checks apply, over every note rather than the turn's own.
     rule_hits = [{"rule": rule, "file": rel, "message": message}
                  for rule, rel, message in checks.note_rules(home, [i for i in notes if i["status"] != "retired"], notes)]
+    # An orphan is a missing cross-reference, not a lost note, so name the notes it most likely belongs with
+    # rather than only reporting it. The ranking is the same one `find` uses.
+    orphans = [hit for hit in rule_hits if hit["rule"] == "orphan-note"]
+    if orphans:
+        corpus = topics.Corpus(home)
+        by_file = {f"memory/{item['file']}": item for item in notes}
+        for hit in orphans:
+            item = by_file.get(hit["file"])
+            if not item:
+                continue
+            query = f"{item['name']} {item['description']}"
+            size = len(set(topics.words(query))) or 1
+            # Same bar as the duplicate hint: below it the top match is noise, so suggest nothing.
+            names = [other["name"] for score, other in corpus.rank(query, limit=4)
+                     if other["file"] != item["file"] and score / size >= topics.SAME_TOPIC][:3]
+            if names:
+                hit["candidates"] = names
+                hit["message"] += " Closest notes by wording: " + ", ".join(f"[[{name}]]" for name in names) + "."
 
     if as_json:
         print(json.dumps({

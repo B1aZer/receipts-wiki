@@ -214,6 +214,23 @@ class CommandTests(HookTestCase):
         self.assertIn("orphan-note", report["rule_descriptions"])
         self.assertEqual({hit["file"] for hit in report["rules"] if hit["rule"] == "orphan-note"}, {"memory/project_lonely.md"})
 
+    def test_orphan_findings_suggest_the_notes_they_belong_with(self):
+        memory = self.home / "memory"
+        # Word statistics need a corpus: in a three-note home every word looks rare.
+        for i, topic in enumerate(["tls renewal", "disk quota", "cdn cache", "queue depth", "vpn tunnel",
+                                   "image registry", "canary share", "sso session", "backup window", "cron drift"]):
+            (memory / f"project_ops{i}.md").write_text(note(f"ops-{i}", f"{topic} setting for service {i}", "Body."))
+        (memory / "project_dune_credits.md").write_text(note("dune-credits", "Dune credits: download is the killer, not execution", "Body."))
+        (memory / "project_dune_download.md").write_text(note("dune-download", "Dune download costs credits per megabyte, not per execution", "Body."))
+        (memory / "project_pager.md").write_text(note("pager-rota", "who is on call and how the rota rotates", "Body."))
+        report = json.loads(self.cli("lint", "--json"))
+        suggested = {hit["file"]: hit.get("candidates") for hit in report["rules"] if hit["rule"] == "orphan-note"}
+        self.assertEqual(suggested["memory/project_dune_credits.md"], ["dune-download"])
+        # Scores are asymmetric near the bar, so only the confident direction is asserted.
+        self.assertIsNone(suggested["memory/project_pager.md"])
+        self.assertIsNone(suggested["memory/project_ops3.md"])
+        self.assertIn("Closest notes by wording: [[dune-download]]", self.cli("lint"))
+
     def test_find_json_lists_results_and_cursors(self):
         memory = self.home / "memory"
         (memory / "project_ingest.md").write_text(note("posthog-ingestion", "PostHog ingestion consumer crash", "Kafka poison pill."))

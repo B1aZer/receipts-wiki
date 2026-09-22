@@ -1,6 +1,6 @@
 {
   "name": "receipts-wiki",
-  "version": "0.3.0-dev.8",
+  "version": "0.3.0-dev.9",
   "description": "Git-versioned, receipt-backed memory for AI agents, built on Claude Code's auto memory. Commits every memory write with its session and reasons, blocks stale or secret-bearing writes, keeps a per-area cursor for the current position, and can resume a lost session from the conversation archive.",
   "author": {
     "name": "Dmitrii Branitskii",
