@@ -19,10 +19,10 @@ Commands:
     rw.py precommit                 (run by the git pre-commit hook)
     rw.py install-git-hook
     rw.py history <note> [--patch]
-    rw.py find <words...> [--limit N]
+    rw.py find <words...> [--limit N] [--json]
     rw.py recall <query...> [--limit N]
     rw.py resume [<session>] [--cwd PATH] [--limit N]
-    rw.py lint [--stale-days N] [--unread-days N]
+    rw.py lint [--stale-days N] [--unread-days N] [--json]
 """
 import argparse
 import json
@@ -73,12 +73,14 @@ def main(argv):
     lookup = commands.add_parser("find", help="rank memory notes against words, whatever their area")
     lookup.add_argument("query", nargs="+")
     lookup.add_argument("--limit", type=int, default=8)
+    lookup.add_argument("--json", action="store_true", help="machine-readable results")
     search = commands.add_parser("recall", help="search archived conversations")
     search.add_argument("query", nargs="+")
     search.add_argument("--limit", type=int, default=5)
     check = commands.add_parser("lint", help="report problems, warnings and forgetting candidates")
     check.add_argument("--stale-days", type=int, default=90)
     check.add_argument("--unread-days", type=int, default=60)
+    check.add_argument("--json", action="store_true", help="machine-readable report, including every rule hit")
     res = commands.add_parser("resume", help="mine a dead session's archive for un-promoted decisions and next actions")
     res.add_argument("session", nargs="?", default=None, help="session id; omit to use --cwd or the most recent session")
     res.add_argument("--cwd", default=None, help="recover the most recent session archived for this working directory")
@@ -97,12 +99,12 @@ def main(argv):
     if args.command == "history":
         return cli.history(home, args.note, patch=args.patch)
     if args.command == "find":
-        return cli.find(home, " ".join(args.query), limit=args.limit)
+        return cli.find(home, " ".join(args.query), limit=args.limit, as_json=args.json)
     if args.command == "recall":
         return cli.recall(home, " ".join(args.query), limit=args.limit)
     if args.command == "resume":
         return cli.resume(home, args.session, cwd=args.cwd, limit=args.limit)
-    return cli.lint(home, stale_days=args.stale_days, unread_days=args.unread_days)
+    return cli.lint(home, stale_days=args.stale_days, unread_days=args.unread_days, as_json=args.json)
 
 
 if __name__ == "__main__":

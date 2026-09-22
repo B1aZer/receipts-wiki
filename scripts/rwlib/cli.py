@@ -5,7 +5,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, state, topics, turns
+from . import checks, config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, state, topics, turns
 
 HOOK_MARK = "receipts-wiki pre-commit hook"
 HOOK_SCRIPT = """#!/bin/sh
@@ -138,15 +138,27 @@ def history(home, target, patch=False):
     return 0
 
 
-def find(home, query, limit=8):
+def find(home, query, limit=8, as_json=False):
     """Notes ranked against the query, whatever their area, with the cursors that link them."""
     corpus = topics.Corpus(home)
     ranked = corpus.rank(query, limit=limit)
+    query_words = set(topics.words(query))
+    memory = Path(home) / "memory"
+    if as_json:
+        print(json.dumps({
+            "query": query,
+            "results": [{"score": round(score, 2), "path": str(memory / item["file"]), "file": item["file"],
+                         "name": item["name"], "type": item["type"] or "note", "area": item["area"],
+                         "description": item["description"],
+                         "matched": sorted(query_words & topics.note_words(item))}
+                        for score, item in ranked],
+            "cursors": [{"path": str(memory / c["file"]), "name": c["name"], "description": c["description"]}
+                        for c in topics.cursors_linking(corpus, [item for _, item in ranked])],
+        }, indent=2))
+        return 0
     if not ranked:
         print(f"no note matches {query!r}")
         return 0
-    query_words = set(topics.words(query))
-    memory = Path(home) / "memory"
     for score, item in ranked:
         matched = ", ".join(sorted(query_words & topics.note_words(item)))
         print(f"{score:5.1f}  {memory / item['file']}")
@@ -241,14 +253,14 @@ def _first_commit_date(home, rel):
     return _parse_date(lines[-1]) if lines else None
 
 
-def lint(home, stale_days=90, unread_days=60, today=None):
+def lint(home, stale_days=90, unread_days=60, today=None, as_json=False):
     home = Path(home)
     today = today or date.today()
     if not home.exists():
         print(f"No memory home at {home}. Run the receipts-wiki setup skill.")
         return 0
     memory = home / "memory"
-    problems, warnings, forget = [], [], {}
+    problems, warnings, forget, rule_hits = [], [], {}, []
 
     if not gitlog.is_repo(home):
         problems.append(f"{home} is not the root of a git repository")
@@ -339,12 +351,41 @@ def lint(home, stale_days=90, unread_days=60, today=None):
             if size > indexer.MAX_BYTES or lines > indexer.MAX_LINES:
                 warnings.append(f"memory/{path.name} is {lines} lines / {size} bytes, over the {indexer.MAX_LINES}-line / {indexer.MAX_BYTES}-byte budget")
 
+    # The same per-note rules the end-of-turn checks apply, over every note rather than the turn's own.
+    rule_hits = [{"rule": rule, "file": rel, "message": message}
+                 for rule, rel, message in checks.note_rules(home, [i for i in notes if i["status"] != "retired"], notes)]
+
+    if as_json:
+        print(json.dumps({
+            "home": str(home),
+            "problems": problems,
+            "warnings": warnings,
+            "rules": rule_hits,
+            "rule_descriptions": checks.RULES,
+            "forgetting_candidates": {rel: reasons for rel, reasons in sorted(forget.items())},
+            "counts": {"problems": len(problems), "warnings": len(warnings), "rules": len(rule_hits),
+                       "forgetting_candidates": len(forget)},
+        }, indent=2))
+        return 0
+
     print(f"# receipts-wiki lint: {home}\n")
     print("Report only; nothing was changed.\n")
     for title, items in (("Problems", problems), ("Warnings", warnings)):
         print(f"## {title} ({len(items)})\n")
         print("\n".join(f"- {item}" for item in items) if items else "None.")
         print()
+    print(f"## Rules over every note ({len(rule_hits)})\n")
+    if rule_hits:
+        by_rule = {}
+        for hit in rule_hits:
+            by_rule.setdefault(hit["rule"], []).append(hit)
+        for rule in sorted(by_rule):
+            print(f"**{rule}** — {checks.RULES.get(rule, '')} ({len(by_rule[rule])})")
+            for hit in sorted(by_rule[rule], key=lambda h: h["file"]):
+                print(f"- {hit['message']}")
+            print()
+    else:
+        print("None.\n")
     print(f"## Forgetting candidates ({len(forget)}), retire only with the owner's approval\n")
     print("\n".join(f"- {rel}: {'; '.join(reasons)}" for rel, reasons in sorted(forget.items())) if forget else "None.")
     return 0

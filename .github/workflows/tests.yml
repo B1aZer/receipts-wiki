@@ -1,0 +1,32 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unittest:
+    # The hooks shell out to git and python3 only, so the matrix is the supported Python range.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Configure git
+        # Turn commits need an identity and a predictable default branch.
+        run: |
+          git config --global user.name "receipts-wiki ci"
+          git config --global user.email "ci@example.com"
+          git config --global init.defaultBranch main
+      - name: Run the test suite
+        run: python3 -m unittest discover -s tests -v
+      - name: Check the plugin manifest and hooks parse
+        run: |
+          python3 -c "import json; json.load(open('.claude-plugin/plugin.json')); json.load(open('hooks/hooks.json'))"
+          python3 scripts/rw.py --help > /dev/null

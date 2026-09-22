@@ -193,6 +193,40 @@ class CommandTests(HookTestCase):
         self.assertIn(f"Cursor for this work: {memory / 'cursor_posthog.md'}: PR open; NEXT = find a reviewer", output)
         self.assertIn("no note matches", self.cli("find", "zebra"))
 
+    def test_lint_sweeps_every_note_with_named_rules_and_speaks_json(self):
+        memory = self.home / "memory"
+        (memory / "project_big.md").write_text(note("big-note", "a log", "x" * 13000 + "\n\nSee [[other-note]]."))
+        (memory / "project_other.md").write_text(note("other-note", "linked", "Body. See [[big-note]]."))
+        (memory / "project_lonely.md").write_text(note("lonely-note", "nothing links it", "Body."))
+        output = self.cli("lint")
+        self.assertIn("## Rules over every note", output)
+        self.assertIn("**note-too-big**", output)
+        self.assertIn("memory/project_big.md is 13 KB", output)
+        self.assertIn("**orphan-note**", output)
+        self.assertIn("memory/project_lonely.md has no [[link]] in or out", output)
+        self.assertNotIn("project_other.md has no", output)
+
+        report = json.loads(self.cli("lint", "--json"))
+        self.assertEqual(report["counts"]["rules"], len(report["rules"]))
+        rules = {hit["rule"] for hit in report["rules"]}
+        # None of the three was committed, so no index lists them either.
+        self.assertEqual(rules, {"note-too-big", "orphan-note", "index-unlisted"})
+        self.assertIn("orphan-note", report["rule_descriptions"])
+        self.assertEqual({hit["file"] for hit in report["rules"] if hit["rule"] == "orphan-note"}, {"memory/project_lonely.md"})
+
+    def test_find_json_lists_results_and_cursors(self):
+        memory = self.home / "memory"
+        (memory / "project_ingest.md").write_text(note("posthog-ingestion", "PostHog ingestion consumer crash", "Kafka poison pill."))
+        (memory / "cursor_posthog.md").write_text("---\nname: cursor-posthog\ndescription: PR open; NEXT = reviewer\n"
+                                                  "metadata:\n  type: cursor\n  area: general\n---\n\nSee [[posthog-ingestion]].\n")
+        report = json.loads(self.cli("find", "kafka", "poison", "--json"))
+        self.assertEqual(report["query"], "kafka poison")
+        first = report["results"][0]
+        self.assertEqual(first["file"], "project_ingest.md")
+        self.assertEqual(sorted(first["matched"]), ["kafka", "poison"])
+        self.assertEqual([c["name"] for c in report["cursors"]], ["cursor-posthog"])
+        self.assertEqual(json.loads(self.cli("find", "zebra", "--json"))["results"], [])
+
     def test_recall_finds_archived_message(self):
         path = self.tmp / "t.jsonl"
         path.write_text("".join(json.dumps(record) + "\n" for record in BASE))
