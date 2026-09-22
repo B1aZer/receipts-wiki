@@ -22,7 +22,7 @@ Commands:
     rw.py find <words...> [--limit N] [--json]
     rw.py recall <query...> [--limit N]
     rw.py resume [<session>] [--cwd PATH] [--limit N]
-    rw.py lint [--stale-days N] [--unread-days N] [--json]
+    rw.py lint [--stale-days N] [--unread-days N] [--json] [--docs]
 """
 import argparse
 import json
@@ -81,6 +81,7 @@ def main(argv):
     check.add_argument("--stale-days", type=int, default=90)
     check.add_argument("--unread-days", type=int, default=60)
     check.add_argument("--json", action="store_true", help="machine-readable report, including every rule hit")
+    check.add_argument("--docs", action="store_true", help="also sweep folders memory names for documents no note names")
     res = commands.add_parser("resume", help="mine a dead session's archive for un-promoted decisions and next actions")
     res.add_argument("session", nargs="?", default=None, help="session id; omit to use --cwd or the most recent session")
     res.add_argument("--cwd", default=None, help="recover the most recent session archived for this working directory")
@@ -104,7 +105,7 @@ def main(argv):
         return cli.recall(home, " ".join(args.query), limit=args.limit)
     if args.command == "resume":
         return cli.resume(home, args.session, cwd=args.cwd, limit=args.limit)
-    return cli.lint(home, stale_days=args.stale_days, unread_days=args.unread_days, as_json=args.json)
+    return cli.lint(home, stale_days=args.stale_days, unread_days=args.unread_days, as_json=args.json, docs=args.docs)
 
 
 if __name__ == "__main__":

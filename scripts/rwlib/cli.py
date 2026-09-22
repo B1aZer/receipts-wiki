@@ -253,7 +253,7 @@ def _first_commit_date(home, rel):
     return _parse_date(lines[-1]) if lines else None
 
 
-def lint(home, stale_days=90, unread_days=60, today=None, as_json=False):
+def lint(home, stale_days=90, unread_days=60, today=None, as_json=False, docs=False):
     home = Path(home)
     today = today or date.today()
     if not home.exists():
@@ -373,6 +373,13 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False):
                 hit["candidates"] = names
                 hit["message"] += " Closest notes by wording: " + ", ".join(f"[[{name}]]" for name in names) + "."
 
+    doc_groups = checks.unnamed_docs_in_dirs(home) if docs else []
+    for folder, paths in doc_groups:
+        for path in paths:
+            rule_hits.append({"rule": "doc-unnamed", "file": str(path),
+                              "message": f"{path} is in a folder memory names, and no note names the file. "
+                                         "Add a line naming it and what it holds to the note for that work, or leave it if it is scratch."})
+
     if as_json:
         print(json.dumps({
             "home": str(home),
@@ -393,9 +400,16 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False):
         print("\n".join(f"- {item}" for item in items) if items else "None.")
         print()
     print(f"## Rules over every note ({len(rule_hits)})\n")
+    if doc_groups:
+        print(f"**doc-unnamed** — {checks.RULES['doc-unnamed']} ({sum(len(p) for _, p in doc_groups)} in {len(doc_groups)} folders)")
+        for folder, paths in doc_groups:
+            print(f"- {folder}: " + ", ".join(path.name for path in paths))
+        print()
     if rule_hits:
         by_rule = {}
         for hit in rule_hits:
+            if hit["rule"] == "doc-unnamed":
+                continue  # already printed above, grouped by folder
             by_rule.setdefault(hit["rule"], []).append(hit)
         for rule in sorted(by_rule):
             print(f"**{rule}** — {checks.RULES.get(rule, '')} ({len(by_rule[rule])})")

@@ -11,7 +11,7 @@ Change nothing before the user approves that specific change. Never print a secr
 
 `<plugin>` is two directories above this skill's base directory. If `<plugin>/scripts/rw.py` does not exist, tell the user to install the receipts-wiki plugin and stop.
 
-1. Run `python3 <plugin>/scripts/rw.py lint` and show the report.
+1. Run `receipts-wiki lint` and show the report. Add `--docs` when the user wants the documents sweep too: it lists markdown files in folders memory names that no note names, and each one is either worth a pointer line in the note for that work or worth leaving alone.
 2. Problems first. For each one, propose the smallest fix and wait for an answer.
    - A secret value in a note: propose replacing it with the secret's name or location. After the edit, tell the user the value is still in git history and that removing it there needs a history rewrite, which they must approve separately.
    - A failed commit: show git's error and propose the fix (for example, finishing a merge or making the signing key available).

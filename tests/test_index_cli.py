@@ -231,6 +231,27 @@ class CommandTests(HookTestCase):
         self.assertIsNone(suggested["memory/project_ops3.md"])
         self.assertIn("Closest notes by wording: [[dune-download]]", self.cli("lint"))
 
+    def test_docs_sweep_reports_documents_in_folders_memory_names(self):
+        docs = self.tmp / "project" / "career"
+        docs.mkdir(parents=True)
+        for name in ("plan.md", "orphan-doc.md", "README.md", "committed.md"):
+            (docs / name).write_text(f"# {name}\n")
+        self.git("init", "-q", "-b", "main", cwd=docs)
+        self.git("add", "committed.md", cwd=docs)
+        (self.home / "memory" / "project_plan.md").write_text(
+            note("career-plan", "the plan", f"The plan lives in {docs}/plan.md."))
+
+        self.assertNotIn("doc-unnamed", self.cli("lint"))
+        output = self.cli("lint", "--docs")
+        self.assertIn("**doc-unnamed**", output)
+        self.assertIn("orphan-doc.md", output)
+        for skipped in ("plan.md,", "README.md", "committed.md"):
+            self.assertNotIn(skipped, output)
+
+        report = json.loads(self.cli("lint", "--docs", "--json"))
+        files = [hit["file"] for hit in report["rules"] if hit["rule"] == "doc-unnamed"]
+        self.assertEqual(files, [str((docs / "orphan-doc.md").resolve())])
+
     def test_find_json_lists_results_and_cursors(self):
         memory = self.home / "memory"
         (memory / "project_ingest.md").write_text(note("posthog-ingestion", "PostHog ingestion consumer crash", "Kafka poison pill."))

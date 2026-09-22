@@ -7,7 +7,9 @@ and a note nothing else connects to.
 Every finding names its rule, and the per-note rules run in two places: over the notes a turn wrote (reported
 to the agent at its next prompt) and over every note (`rw.py lint`), so a sweep sees what a turn would have.
 """
+import os
 import re
+import subprocess
 from pathlib import Path
 
 from . import gitlog, indexer
@@ -19,7 +21,7 @@ RULES = {
     "link-misspelled": "[[link]] that matches no note name but names an existing note",
     "orphan-note": "note with no [[link]] in or out: nothing in memory connects it to anything (sweep only)",
     "cursor-not-updated": "a note changed while the cursor pointing at it did not (turn only)",
-    "doc-unnamed": "document written outside memory that no note names (turn only)",
+    "doc-unnamed": "document in a folder memory names that no note names (turn check, or the `lint --docs` sweep)",
 }
 
 MAX_NOTE_BYTES = 12000
@@ -174,3 +176,74 @@ def docs_notice(paths):
     return (f"doc-unnamed: your last turn created {shown}, and no memory note names {'it' if len(paths) == 1 else 'them'}. "
             "If a later session should find one, add a line naming the file and what it holds to the note for that work "
             "(`receipts-wiki find <topic>` shows which note); skip scratch files.")
+
+
+# Folders memory already names are where its documents live. Everything else on disk is not memory's business,
+# which is why the sweep follows the paths notes mention rather than scanning the machine.
+# Any absolute or ~-rooted path of two segments or more. A loose pattern is safe because every candidate
+# is then checked against the filesystem: what does not exist is not a folder memory names.
+PATH_IN_TEXT = re.compile(r"(?:~|\$HOME)?/[A-Za-z0-9._\-]+(?:/[A-Za-z0-9._\-]+)+")
+# Files a repository carries by convention: they belong to the repo, not to memory.
+REPO_FILES = {"README.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE.md", "CODE_OF_CONDUCT.md",
+              "SECURITY.md", "CLAUDE.md", "AGENTS.md", "TODO.md"}
+
+
+def _memory_text(home):
+    parts = []
+    for path in sorted((Path(home) / "memory").glob("*.md")):
+        try:
+            parts.append(path.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+    return "\n".join(parts)
+
+
+def mentioned_dirs(home, corpus=None, limit=200):
+    """Existing folders that memory names, by path or through a file in them."""
+    corpus = corpus if corpus is not None else _memory_text(home)
+    home = Path(home).resolve()
+    found = set()
+    for raw in PATH_IN_TEXT.findall(corpus):
+        candidate = Path(os.path.expanduser(raw.rstrip("`.,;:)")))
+        folder = candidate if candidate.is_dir() else candidate.parent
+        try:
+            folder = folder.resolve()
+        except (OSError, RuntimeError):
+            continue
+        if not folder.is_dir() or folder == home or home in folder.parents:
+            continue
+        # A folder directly under the home directory (Downloads, Dropbox, Sites) is too broad to be
+        # "where memory's documents live"; a path with a space in it also truncates to one of these.
+        if folder == Path.home() or folder.parent == Path.home():
+            continue
+        if any(part in str(folder) for part in SKIP_DOC_PARTS):
+            continue
+        found.add(folder)
+        if len(found) >= limit:
+            break
+    return sorted(found)
+
+
+def _git_tracked(path):
+    try:
+        return subprocess.run(["git", "-C", str(path.parent), "ls-files", "--error-unmatch", path.name],
+                              capture_output=True, check=False).returncode == 0
+    except OSError:
+        return False
+
+
+def unnamed_docs_in_dirs(home, corpus=None):
+    """[(folder, [paths])] for markdown files in folders memory names that no note names.
+
+    A file a repository tracks is documentation of that repository and is found there; the sweep is for the
+    working documents a session wrote and never told memory about.
+    """
+    corpus = corpus if corpus is not None else _memory_text(home)
+    out = []
+    for folder in mentioned_dirs(home, corpus):
+        unnamed = [path for path in sorted(folder.glob("*.md"))
+                   if path.name not in corpus and path.stem not in corpus
+                   and path.name not in REPO_FILES and not _git_tracked(path)]
+        if unnamed:
+            out.append((folder, unnamed))
+    return out
