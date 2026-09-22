@@ -24,6 +24,8 @@ The last line installs a git pre-commit check in `~/.agents`. It blocks commits 
 
 Edit `~/.agents/AGENTS.md` and replace the example rules with yours.
 
+Without the plugin there are no skills and no `receipts-wiki` command on PATH, so an agent searches memory by running the script: `python3 ~/src/receipts-wiki/scripts/rw.py find <words>`. Claude Code asks before running any script, so add a matching rule to `permissions.allow` in your settings, for example `Bash(python3 ~/src/receipts-wiki/scripts/rw.py find *)`, and say in your rules file when to use it. The same command with `--json` returns the ranked notes for an agent to parse.
+
 ## 3. Add settings and hooks
 
 Merge this into `~/.claude/settings.json`, keeping your other keys. If you already have hooks for these events, add the entries to the existing arrays.

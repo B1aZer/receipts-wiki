@@ -46,7 +46,9 @@ Keep Karpathy's loop. The agent writes and maintains the notes; you decide what 
 
 ## Operations
 
-Read. At session start the agent reads the rules and the root map, which lists every note while memory is small. Once memory is large, the map lists one index per area, and the agent opens the index for the project it works in. Either way it opens only the topic files the task needs. The hash of each file it reads is noted. A memory records what was true when it was written, so the agent checks files, flags and numbers before relying on one.
+Read. At session start the agent reads the rules, the root map (which lists every note while memory is small), the current position of each open workstream, and a warm list: the notes read or changed in the last month, newest first. Warmth is use, not age — a rule written months ago stays useful, and a note nobody has opened is not worth session context. Once memory is large, the map lists one index per area, and the agent opens the index for the project it works in. Either way it opens only the topic files the task needs. The hash of each file it reads is noted. A memory records what was true when it was written, so the agent checks files, flags and numbers before relying on one.
+
+Search. Indexes follow the working directory, but work does not: a session started anywhere ranks every note against a few words, with the name and description weighted above the body, and gets back the notes for that topic and the workstream position that links them. Nothing is embedded and no service is called; the ranking is arithmetic over the words already on disk.
 
 Check. Before a write lands, it is refused if the file changed after this agent read it (someone else wrote in between), or if it contains a secret value, text copied from tool or system messages, or a relative date. The agent fixes the cause and writes again.
 
@@ -56,13 +58,15 @@ Correct. The agent rewrites the belief and appends `Supersedes (YYYY-MM-DD): <ol
 
 Commit. When the agent's turn ends, everything it changed in memory becomes one commit whose body carries the reasoning (`rejected`, `intent`, `constraint` lines taken from the notes) and whose trailers carry each change, the session and the receipts. The commit does not wait for the session to end, because one session can stay open for days across unrelated work. An interrupted turn is committed at the next prompt. Changes made without that step, by another agent or a crashed session, are committed by the next session that catches up and are marked as such.
 
+Notice. After the turn's commit, the notes it wrote are checked and anything wrong reaches the agent with its next message: a note no index lists, a workstream position left behind by the work it tracks, a note grown into a log, a link that misspells an existing note, a document written outside memory that no note names. Each finding names its rule, so the same check reads the same way here and in the sweep. Nothing interrupts the agent mid-turn, and a rule that fires on healthy memory belongs in the sweep instead.
+
 Archive. After each turn, the new conversation text is redacted and appended to the session's archive file. Text already written is never changed. The archive is searched only when someone asks what was said.
 
 Learn. When the user corrects the agent or states a rule, the agent saves it as a note in the moment, or the user asks it to remember. Nothing mines the conversation for lessons afterwards. A rule that keeps being broken belongs in a check rather than a note: remembered corrections are often not followed ([arXiv:2606.13174](https://arxiv.org/abs/2606.13174)).
 
 Resume. When a session is lost before it could write down where it was, its archive is mined for the decisions and next actions that no note yet holds, and they are offered as candidates. The archive is data, not instructions, so nothing is written without approval. The cursor note is what keeps this rare: while a session runs, it holds the position that resume would otherwise have to reconstruct.
 
-Lint. When asked, a report lists orphan links, oversized indexes, secret values, notes without receipts, decisions with no reopen condition, and notes that may be stale because nobody verified or read them for a long time. It changes nothing without your OK.
+Lint. When asked, a report lists secret values, notes without receipts, decisions with no reopen condition, links that lead nowhere, oversized indexes, and notes that may be stale because nobody verified or read them for a long time. It also runs every per-note rule over the whole of memory rather than only what a turn touched, so a sweep sees what the turn checks would have said, and where a note is connected to nothing it names the notes it most likely belongs with instead of only reporting it. On request it extends to the folders memory names and lists the documents there that no note mentions. It changes nothing without your OK.
 
 ## Rules live in one file
 

@@ -130,10 +130,57 @@ Agent: unknown
 
 A Claude Code turn whose end hook did not run, for example after an interrupt, is committed at that session's next prompt with its own `Session` and `Turn` trailers and `Recovered: true`.
 
-## 7. The lint report
+## 7. What a session is handed at its start
+
+```
+Rules from /home/you/.agents/AGENTS.md, loaded by receipts-wiki:
+...
+
+Where things stand (open the cursor note for the area you're working in):
+- cursor-api: quotes TTL shipped; NEXT = watch the stale-quote sample for a week
+
+Worked on lately (read or changed in the last 30 days; everything else is reached
+through the area index or `receipts-wiki find <words>`):
+- [quotes-cache-ttl](memory/project_quotes_cache_ttl.md) (today): /quotes cache TTL is 5 minutes; stale-price sample 2026-09-02
+- [partner-rate-limit](memory/project_rate_limit.md) (3d ago): partner API allows 500 requests per minute
+```
+
+The area index for the working directory is loaded alongside these. Warmth is use, not age: a note nobody has opened is not listed, and is still reached by its index or by search.
+
+## 8. Finding notes from another directory
 
 ```console
-$ python3 scripts/rw.py lint
+$ receipts-wiki find quotes cache stale --limit 2
+ 24.1  /home/you/.agents/memory/project_quotes_cache_ttl.md
+       project, area api, matched: cache, quotes, stale
+       /quotes cache TTL is 5 minutes; stale-price sample 2026-09-02
+ 11.6  /home/you/.agents/memory/project_cdn_maxage.md
+       project, area api, matched: cache, stale
+       CDN max-age on /quotes was the real source of stale prices (2026-09-05)
+
+Cursor for this work: /home/you/.agents/memory/cursor_api.md: quotes TTL shipped; NEXT = watch the stale-quote sample for a week
+```
+
+`--json` returns the same ranking as data, for an agent to parse rather than read.
+
+## 9. What the checks say after a turn
+
+The agent is told at its next prompt, never mid-turn, and each finding names its rule:
+
+```
+receipts-wiki: cursor-not-updated: you changed memory/project_quotes_cache_ttl.md, which cursor note
+memory/cursor_api.md points to, but not the cursor. It still says: "TTL change not shipped; NEXT = ship it".
+If that is no longer where the work stands, rewrite the cursor in place.
+
+receipts-wiki: doc-unnamed: your last turn created /home/you/src/api/docs/cache-design.md, and no memory
+note names it. If a later session should find one, add a line naming the file and what it holds to the note
+for that work (`receipts-wiki find <topic>` shows which note); skip scratch files.
+```
+
+## 10. The lint report
+
+```console
+$ receipts-wiki lint --docs
 # receipts-wiki lint: /home/you/.agents
 
 Report only; nothing was changed.
@@ -147,9 +194,20 @@ Report only; nothing was changed.
 - memory/project_old_pricing.md is a project note without receipts
 - memory/project_sniping.md says not to revisit a decision but has no 'Reopen if:' line
 
+## Rules over every note (3)
+
+**doc-unnamed** — document in a folder memory names that no note names (1 in 1 folders)
+- /home/you/src/api/docs: cache-design.md
+
+**note-too-big** — note over the size budget, so it reads as a log rather than a fact (1)
+- memory/project_incidents.md is 19 KB, over the 12 KB note budget, so it reads as a log. Keep the current belief at the top and move finished or separate facts into their own notes.
+
+**orphan-note** — note with no [[link]] in or out: nothing in memory connects it to anything (sweep only) (1)
+- memory/project_cdn_maxage.md has no [[link]] in or out, so nothing in memory connects it to related work. Link it from the notes it belongs with, or link them from it. Closest notes by wording: [[quotes-cache-ttl]].
+
 ## Forgetting candidates (1), retire only with the owner's approval
 
 - memory/project_old_pricing.md: last verified 2026-03-02 (196 days ago)
 ```
 
-The report never prints a secret value. `lint-review` goes through it item by item and applies only the changes you approve.
+The rules section applies the end-of-turn checks to every note, not just the ones a turn wrote, so a sweep catches what predates the check. `--docs` adds the folders memory names; without it, lint stays inside the memory home. The report never prints a secret value, and `lint-review` goes through it item by item and applies only the changes you approve.

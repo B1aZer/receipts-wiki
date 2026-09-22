@@ -13,7 +13,7 @@ Status: 0.3.0-dev, in daily use by its author since 2026-09-13. First eval resul
 | [skills/](skills/) | Five skills: `find` (search every note by topic; the agent may use it on its own), and the manual `setup`, `recall`, `resume` (recover a lost session), `lint-review` |
 | [templates/](templates/) | `AGENTS.md` (guardrails for every agent) and `WRITING.md` (how to write a note) |
 | [docs/](docs/) | [COMMIT-SPEC.md](docs/COMMIT-SPEC.md), [PLAN.md](docs/PLAN.md), [manual-install.md](docs/manual-install.md) |
-| [evals/](evals/) | A no-network functional eval, model-behaviour checks and the update-correctness eval |
+| [evals/](evals/) | A no-network functional eval, model-behaviour checks, the update-correctness eval, and the drift eval: does memory stay findable and current across sessions and directories? |
 | [EXAMPLES.md](EXAMPLES.md) | What the hooks and commands produce |
 
 ## What happens in a session
