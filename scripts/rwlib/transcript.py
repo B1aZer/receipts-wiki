@@ -8,12 +8,16 @@ import json
 import os
 
 
-def read(path, start_line=0, start_offset=0):
+def read(path, start_line=0, start_offset=0, start_turn=None):
     """Return (meta, messages) for complete lines after the given line number and byte offset.
 
-    meta: title, branch, cwd, last_line, offset. messages: dicts with line, role, ts, text.
+    meta: title, branch, cwd, last_line, offset, turn. messages: dicts with line, role, ts, text, turn.
+    A message's turn is the promptId of the latest user record at or before it (tool results carry it too,
+    assistant records do not); it is the prompt_id hooks see, so a memory commit's Turn trailer names it.
+    start_turn carries the turn across incremental reads.
     """
-    meta = {"title": None, "branch": None, "cwd": None, "last_line": start_line, "offset": start_offset}
+    meta = {"title": None, "branch": None, "cwd": None, "last_line": start_line, "offset": start_offset,
+            "turn": start_turn}
     messages = []
     try:
         handle = open(path, "rb")
@@ -26,7 +30,7 @@ def read(path, start_line=0, start_offset=0):
             size = 0
         if start_offset > size:
             start_line, start_offset = 0, 0
-            meta["last_line"], meta["offset"] = 0, 0
+            meta["last_line"], meta["offset"], meta["turn"] = 0, 0, None
         handle.seek(start_offset)
         number, offset = start_line, start_offset
         for raw in handle:
@@ -46,12 +50,15 @@ def read(path, start_line=0, start_offset=0):
             meta["branch"] = meta["branch"] or record.get("gitBranch")
             meta["cwd"] = meta["cwd"] or record.get("cwd")
             role = record.get("type")
+            if role == "user" and not record.get("isSidechain") and isinstance(record.get("promptId"), str):
+                meta["turn"] = record["promptId"]
             if role not in ("user", "assistant") or record.get("isMeta") or record.get("isSidechain") or _not_written_by_user(record):
                 continue
             message = record.get("message") if isinstance(record.get("message"), dict) else {}
             text = _text(message.get("content"))
             if text.strip():
-                messages.append({"line": number, "role": role, "ts": record.get("timestamp"), "text": text})
+                messages.append({"line": number, "role": role, "ts": record.get("timestamp"), "text": text,
+                                 "turn": meta["turn"]})
     return meta, messages
 
 

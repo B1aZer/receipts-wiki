@@ -74,6 +74,12 @@ def main(argv):
     lookup.add_argument("query", nargs="+")
     lookup.add_argument("--limit", type=int, default=8)
     lookup.add_argument("--json", action="store_true", help="machine-readable results")
+    log = commands.add_parser("changes", help="memory changes, newest first, each with the conversation turn that made it")
+    log.add_argument("--since", default=None, help="git date, e.g. 2026-09-27 or '2 days ago'")
+    log.add_argument("--note", default=None, help="only changes to this note (name or file)")
+    log.add_argument("--area", default=None, help="only changes touching a note of this area")
+    log.add_argument("--limit", type=int, default=20)
+    log.add_argument("--json", action="store_true", help="machine-readable, with the full quotes")
     search = commands.add_parser("recall", help="search archived conversations")
     search.add_argument("query", nargs="+")
     search.add_argument("--limit", type=int, default=5)
@@ -101,6 +107,8 @@ def main(argv):
         return cli.history(home, args.note, patch=args.patch)
     if args.command == "find":
         return cli.find(home, " ".join(args.query), limit=args.limit, as_json=args.json)
+    if args.command == "changes":
+        return cli.changes(home, since=args.since, note=args.note, area=args.area, limit=args.limit, as_json=args.json)
     if args.command == "recall":
         return cli.recall(home, " ".join(args.query), limit=args.limit)
     if args.command == "resume":

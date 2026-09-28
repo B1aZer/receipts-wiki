@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
+# Maintainer plans drawn from the author's own memory home stay local.
+docs/PLAN-log-first.md
 # Raw eval results hold local paths and full session output; the summary tables are kept.
 evals/update_correctness/results/*.jsonl
 evals/drift/results/*.jsonl

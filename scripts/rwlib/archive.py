@@ -29,8 +29,9 @@ def _month_folder(home, timestamp):
 
 def append(home, session, transcript_path, cwd, data):
     """Append messages written since the last call. Updates the session log in data. Returns the new messages."""
-    meta, messages = transcript.read(transcript_path, data.get("archived_line", 0), data.get("archived_offset", 0))
-    data["archived_line"], data["archived_offset"] = meta["last_line"], meta["offset"]
+    meta, messages = transcript.read(transcript_path, data.get("archived_line", 0), data.get("archived_offset", 0),
+                                     data.get("archived_turn"))
+    data["archived_line"], data["archived_offset"], data["archived_turn"] = meta["last_line"], meta["offset"], meta["turn"]
     if meta["title"]:
         data["title"] = meta["title"]
     for key in ("branch", "cwd"):
@@ -41,7 +42,9 @@ def append(home, session, transcript_path, cwd, data):
     for message in messages:
         text = secrets.redact(message["text"]).strip()
         if text:
-            block = f"## {_one_line(message['ts'])} {message['role']} (line {message['line']})\n\n{text}\n"
+            turn = re.sub(r"[^A-Za-z0-9_.-]", "", str(message.get("turn") or ""))[:64]
+            where = f"line {message['line']}, turn {turn}" if turn else f"line {message['line']}"
+            block = f"## {_one_line(message['ts'])} {message['role']} ({where})\n\n{text}\n"
             groups.setdefault(_month_folder(home, message["ts"]), []).append(block)
     for folder, blocks in groups.items():
         folder.mkdir(parents=True, exist_ok=True)

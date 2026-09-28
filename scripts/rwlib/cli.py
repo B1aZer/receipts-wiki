@@ -5,7 +5,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import checks, config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, state, topics, turns
+from . import changes as changes_log, checks, config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, state, topics, turns
 
 HOOK_MARK = "receipts-wiki pre-commit hook"
 HOOK_SCRIPT = """#!/bin/sh
@@ -117,9 +117,9 @@ def resolve_note(home, target):
     direct = memory / f"{Path(stem).name}.md"
     if direct.exists():
         return f"memory/{direct.name}"
-    wanted = gitlog.slug(target)
+    wanted = gitlog.slug(Path(stem).name)
     for item in indexer.notes(home):
-        if gitlog.slug(item["name"]) == wanted:
+        if wanted in (gitlog.slug(item["name"]), gitlog.slug(Path(item["file"]).stem)):
             return f"memory/{item['file']}"
     return None
 
@@ -200,6 +200,21 @@ def resume(home, session_id=None, cwd=None, limit=20):
         print(f"## {block['ts']} {block['role']} ({block['file']} line {block['line']})  [~{new_pct}% new]")
         print(block["text"])
         print(f"Receipt: session:{entry['session']}#L{block['line']}\n")
+    return 0
+
+
+def changes(home, since=None, note=None, area=None, limit=20, as_json=False):
+    rel = None
+    if note:
+        rel = resolve_note(home, note)
+        if not rel:
+            print(f"no note matches {note!r}")
+            return 1
+    rows = changes_log.collect(home, since=since, rel=rel, area=area, limit=limit)
+    if as_json:
+        print(json.dumps(changes_log.as_json(rows), indent=2, ensure_ascii=False))
+    else:
+        print(changes_log.render(rows), end="")
     return 0
 
 

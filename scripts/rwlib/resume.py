@@ -23,7 +23,7 @@ SIGNAL = re.compile(
 MIN_CHARS = 20
 MAX_CHARS = 800
 COVERED_THRESHOLD = 0.7
-HEADING = re.compile(r"^##\s+(?P<ts>\S+)\s+(?P<role>user|assistant)\s+\(line\s+(?P<line>\d+)\)", re.I)
+HEADING = re.compile(r"^##\s+(?P<ts>\S+)\s+(?P<role>user|assistant)\s+\(line\s+(?P<line>\d+)(?:,\s*turn\s+(?P<turn>[\w.-]+))?\)", re.I)
 
 
 def sessions(home, session_id=None, cwd=None):
