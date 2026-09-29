@@ -80,6 +80,12 @@ def main(argv):
     log.add_argument("--area", default=None, help="only changes touching a note of this area")
     log.add_argument("--limit", type=int, default=20)
     log.add_argument("--json", action="store_true", help="machine-readable, with the full quotes")
+    queue = commands.add_parser("review", help="notes waiting to be checked against a change they depend on")
+    queue.add_argument("--note", default=None, help="only entries for this note")
+    queue.add_argument("--json", action="store_true", help="machine-readable queue")
+    seen = commands.add_parser("watch", help="what a session would be told about memory another session changed")
+    seen.add_argument("--session", default=None, help="session id or its first characters (default: most recent)")
+    seen.add_argument("--advance", action="store_true", help="also move that session's offset to HEAD")
     search = commands.add_parser("recall", help="search archived conversations")
     search.add_argument("query", nargs="+")
     search.add_argument("--limit", type=int, default=5)
@@ -109,6 +115,10 @@ def main(argv):
         return cli.find(home, " ".join(args.query), limit=args.limit, as_json=args.json)
     if args.command == "changes":
         return cli.changes(home, since=args.since, note=args.note, area=args.area, limit=args.limit, as_json=args.json)
+    if args.command == "review":
+        return cli.review(home, as_json=args.json, note=args.note)
+    if args.command == "watch":
+        return cli.watch(home, session=args.session, advance=args.advance)
     if args.command == "recall":
         return cli.recall(home, " ".join(args.query), limit=args.limit)
     if args.command == "resume":

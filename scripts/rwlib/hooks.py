@@ -12,7 +12,8 @@ import sys
 import time
 from pathlib import Path
 
-from . import archive, checks, config, frontmatter, gitlog, indexer, related, secrets, state, topics, turns, warm
+from . import (archive, changes, checks, config, frontmatter, gitlog, indexer, related, secrets, state, topics,
+               turns, warm, watch)
 
 REVISION = re.compile(r"^(HEAD|ORIG_HEAD|FETCH_HEAD|@)([~^]\d*)*$|^[0-9a-f]{7,40}([~^]\d*)*$")
 RESET_MODES = {"--hard", "--soft", "--mixed", "--merge", "--keep"}
@@ -411,6 +412,10 @@ def hook_prompt(payload):
         turns.sweep(home, current_session=session)
         data["swept_at"] = state.now_iso()
     notes = data.pop("agent_notices", None) or []
+    if config.attended():
+        elsewhere = watch.notice(home, session, data)
+        if elsewhere:
+            notes.append(elsewhere)
     state.save(session, data)
     if notes and config.attended():
         _emit(_context("UserPromptSubmit", "\n\n".join(notes)))
@@ -439,12 +444,29 @@ def area_index_for(home, cwd):
 
 
 def _cursor_pointers(home, limit=8):
-    """One line per active cursor note, so a new session opens the right one instead of re-deriving state."""
+    """One line per active cursor note, so a new session opens the right one instead of re-deriving state.
+
+    Each line also says when the cursor last moved and why, quoted from the conversation that moved it. The
+    description alone says where the work stands; the reason says where it came from, which is the difference
+    between a position and a direction (PLAN-log-first §3.5, §3.7).
+    """
     try:
         cursors = [item for item in indexer.notes(home) if item["type"] == "cursor" and item["status"] != "retired"]
     except OSError:
         return ""
-    lines = [f"- {item['name']}: {item['description']}" for item in sorted(cursors, key=lambda n: n["name"].lower())[:limit]]
+    cursors = sorted(cursors, key=lambda n: n["name"].lower())[:limit]
+    rels = {f"memory/{item['file']}": item for item in cursors}
+    try:
+        moved = watch.last_reasons(home, set(rels))
+    except OSError:
+        moved = {}
+    lines = []
+    for rel, item in rels.items():
+        line = f"- {item['name']}: {item['description']}"
+        last = moved.get(rel) or {}
+        if last.get("reason"):
+            line += f"  [moved {watch._ago(last['time'])}: \"{changes._one_line(last['reason'], 60)}\"]"
+        lines.append(line)
     return "\n".join(lines)
 
 

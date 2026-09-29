@@ -7,10 +7,11 @@ prompt, a log abandoned by a crashed session is committed by another session, an
 hooks are committed as external.change.
 """
 import os
+import re
 import time
 from pathlib import Path
 
-from . import config, gitlog, indexer, secrets, state
+from . import config, gitlog, indexer, review, secrets, state
 
 IN_PROGRESS = "a merge, rebase, cherry-pick or revert is in progress in the memory repository; finish or abort it"
 STALE_UNCOMMITTED_MINUTES = 30
@@ -139,7 +140,30 @@ def record(home, changes, agent, session=None, turn=None, cwd=None, transcript=N
         return False, "no change", []
     message = gitlog.turn_message(changes, extra, agent, session, turn, cwd, transcript, recovered)
     committed, detail = gitlog.commit_paths(home, rels + extra, message)
+    if committed:
+        _mark_dependents(home, changes, detail)
     return committed, detail, extra
+
+
+def _mark_dependents(home, changes, commit):
+    """A superseded or retired fact queues the notes that mention the same named things (§3.4).
+
+    Never blocks the commit: the queue is derived state, and a failure to build it must not cost the
+    change that was just recorded.
+    """
+    events = {"fact.superseded", "fact.retired"}
+    interesting = [c for c in changes if c["event"] in events and indexer.is_note(c["rel"])]
+    if not interesting:
+        return
+    try:
+        # No chronology map here: this runs immediately after the commit, so the event IS HEAD and every
+        # other note was necessarily last changed before it. Building the map cost 167 ms per supersede
+        # turn and filtered nothing (measured 2026-09-29). queue() decides staleness later, by ancestry.
+        for change in interesting:
+            review.mark(home, change["rel"], change.get("new") or "", change["event"], commit,
+                        changed={}, old=change.get("old"))
+    except (OSError, ValueError, re.error):
+        pass
 
 
 def flush_session(home, session, data, turn=None, cwd=None, transcript=None, recovered=False, skip_turn=None):

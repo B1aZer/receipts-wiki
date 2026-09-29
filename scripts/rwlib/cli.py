@@ -5,7 +5,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import changes as changes_log, checks, config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, state, topics, turns
+from . import changes as changes_log, checks, config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, review as review_mod, state, topics, turns, watch as watch_mod
 
 HOOK_MARK = "receipts-wiki pre-commit hook"
 HOOK_SCRIPT = """#!/bin/sh
@@ -215,6 +215,51 @@ def changes(home, since=None, note=None, area=None, limit=20, as_json=False):
         print(json.dumps(changes_log.as_json(rows), indent=2, ensure_ascii=False))
     else:
         print(changes_log.render(rows), end="")
+    return 0
+
+
+def review(home, as_json=False, note=None):
+    """Notes waiting to be checked against a change they depend on."""
+    rows = review_mod.queue(home)
+    if note:
+        rel = resolve_note(home, note)
+        if not rel:
+            print(f"no note matches {note!r}")
+            return 1
+        rows = [row for row in rows if row["note"] == rel]
+    if as_json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print(review_mod.render(rows), end="")
+    return 0
+
+
+def watch(home, session=None, advance=False):
+    """What a session would be told about memory another session changed. A dry run unless --advance."""
+    sessions = sorted(state.all_sessions(), key=lambda d: d.get("updated") or "", reverse=True)
+    if not sessions:
+        print("no session state recorded yet")
+        return 1
+    if session:
+        chosen = next((d for d in sessions if d["session"].startswith(session)), None)
+        if not chosen:
+            print(f"no session matches {session!r}")
+            return 1
+    else:
+        chosen = sessions[0]
+        if len(sessions) > 1:
+            print(f"{len(sessions)} sessions on record; showing the most recent. Others: "
+                  + ", ".join(d["session"][:8] for d in sessions[1:6]) + "\n")
+    before = chosen.get("seen_commit")
+    read, cursors, _ = watch_mod.focus(home, chosen)
+    print(f"session   {chosen['session']}")
+    print(f"offset    {before[:10] if before else '(none yet: the next prompt sets it)'}")
+    print(f"focus     {len(read)} note(s) read this session + {len(cursors)} cursor(s)\n")
+    text = watch_mod.notice(home, chosen["session"], chosen)
+    print(text if text else "nothing relevant changed elsewhere")
+    if advance and chosen.get("seen_commit") != before:
+        state.save(chosen["session"], chosen)
+        print(f"\noffset advanced to {chosen['seen_commit'][:10]}")
     return 0
 
 

@@ -33,11 +33,17 @@ def _one_line(text, width=QUOTE, tail=False):
     return "…" + flat[-(width - 1):] if tail else flat[:width - 1] + "…"
 
 
-def commits(home, since=None, rel=None, limit=None):
-    """Memory commits, newest first, index rebuilds excluded."""
+def commits(home, since=None, rel=None, limit=None, rev_range=None):
+    """Memory commits, newest first, index rebuilds excluded.
+
+    `since` is a git date; `rev_range` is a revision range such as "<sha>..HEAD", which is what a session's
+    offset needs -- "everything after the commit I was last shown", which no date can express exactly.
+    """
     args = ["log", "--format=%H%x01%cI%x01%s%x01%b%x02"]
     if since:
         args.append(f"--since={since}")
+    if rev_range:
+        args.append(rev_range)
     if rel:
         args += ["--", rel]
     out = gitlog.git(home, *args).stdout
@@ -116,8 +122,8 @@ def _areas(home):
         return {}
 
 
-def collect(home, since=None, rel=None, area=None, limit=20):
-    rows = commits(home, since=since, rel=rel, limit=None if area else limit)
+def collect(home, since=None, rel=None, area=None, limit=20, rev_range=None):
+    rows = commits(home, since=since, rel=rel, limit=None if area else limit, rev_range=rev_range)
     if area:
         areas = _areas(home)
         rows = [row for row in rows if any(areas.get(path) == area for path in row["paths"])][:limit]
