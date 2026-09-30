@@ -276,32 +276,34 @@ class CommandTests(HookTestCase):
 
     def test_lint_reports_secrets_receipts_and_forgetting_without_echoing_secrets(self):
         (self.home / ".gitignore").write_text("sessions/\n.state/\n")
-        self.write_and_capture("memory/old.md", note("old-fact", "an old fact", "Body.", extra="  last_verified: 2025-01-01\n"))
+        self.write_and_capture("memory/project_old.md", note("old-fact", "an old fact", "Body.", extra="  last_verified: 2025-01-01\n"))
         (self.home / "memory" / "leak.md").write_text(note("leak", "has a key", "token: abcdefghijklmnopqrstuvwxyz123456"))
         output = self.cli("lint")
         self.assertIn("memory/leak.md contains a secret value", output)
-        self.assertIn("memory/old.md is a project note without receipts", output)
-        self.assertIn("memory/old.md: last verified 2025-01-01", output)
+        self.assertIn("memory/project_old.md is a project note without receipts", output)
+        self.assertIn("memory/project_old.md: last verified 2025-01-01", output)
         self.assertIn("uncommitted changes", output)
         self.assertNotIn("abcdefghijklmnopqrstuvwxyz123456", output)
         self.assertNotIn(".gitignore does not exclude", output)
 
     def test_lint_accepts_receipts_cited_in_the_text(self):
         (self.home / ".gitignore").write_text("sessions/\n.state/\n")
+        # The type comes from the filename prefix, so these must be named as project notes for the
+        # receipt rule to apply to them at all.
         cited = {
-            "commit.md": "Fixed in commit a1b2c3d on 2026-09-02.",
-            "path.md": "The gate lives in `scripts/rwlib/hooks.py`.",
-            "ticket.md": "Raised under ticket PARTNER-812.",
-            "query.md": "Measured with query q_8812: 14 of 200 stale.",
-            "statement.md": "The game is called Hateg Island.\n\nReceipts: user statement",
+            "project_commit.md": "Fixed in commit a1b2c3d on 2026-09-02.",
+            "project_path.md": "The gate lives in `scripts/rwlib/hooks.py`.",
+            "project_ticket.md": "Raised under ticket PARTNER-812.",
+            "project_query.md": "Measured with query q_8812: 14 of 200 stale.",
+            "project_statement.md": "The game is called Hateg Island.\n\nReceipts: user statement",
         }
         for name, body in cited.items():
             (self.home / "memory" / name).write_text(note(name[:-3], "cited", body))
-        (self.home / "memory" / "bare.md").write_text(note("bare", "no evidence", "Run the numbers again sometime, dated 2026-09-02."))
+        (self.home / "memory" / "project_bare.md").write_text(note("bare", "no evidence", "Run the numbers again sometime, dated 2026-09-02."))
         output = self.cli("lint")
         for name in cited:
             self.assertNotIn(f"memory/{name} is a project note without receipts", output)
-        self.assertIn("memory/bare.md is a project note without receipts", output)
+        self.assertIn("memory/project_bare.md is a project note without receipts", output)
 
     def test_lint_flags_missing_gitignore_and_broken_links(self):
         self.write_and_capture("memory/a.md", note("a", "cache", "See [missing](gone.md)."))

@@ -25,6 +25,7 @@ RULES = {
     "cursor-ended-in-prose": "cursor whose own text says the work ended while its status still says active",
     "field-duplicated": "a note restating its own name or description inside metadata, where nothing reads it",
     "rank-in-prose": "a note stating a rank in words when rank is owned by metadata.priority",
+    "frontmatter-lost": "frontmatter the parser accepts but silently drops or overwrites",
 }
 
 MAX_NOTE_BYTES = 12000
@@ -105,6 +106,8 @@ def note_rules(home, subjects, items=None, skip=()):
                    if where else f"check that metadata.area is set; the generated index for area '{item['area']}' should list it")
             found.append(("index-unlisted", rel, f"{rel} is not linked from any index, so later sessions will not find it: {fix}."))
         # The body, not the whole file: "priority: 1" in the frontmatter is the field, not a copy of it.
+        for problem in frontmatter.problems(item["text"]):
+            found.append(("frontmatter-lost", rel, f"{rel}: {problem}"))
         rank = RANK.search(item["description"]) or RANK.search(frontmatter.split(item["text"])[1])
         if rank:
             owns = item.get("priority") is not None

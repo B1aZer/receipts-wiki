@@ -85,12 +85,27 @@ def notes(home, include=None):
             "description": " ".join(str(frontmatter.get(fm, "description") or "").split()),
             "area": gitlog.slug(frontmatter.get(fm, "metadata.area", "area") or "general"),
             "status": str(frontmatter.get(fm, "status", "metadata.status") or "active"),
-            "type": str(frontmatter.get(fm, "metadata.type", "type") or ""),
+            "type": note_type(path.name),
             "priority": _priority(frontmatter.get(fm, "metadata.priority", "priority")),
             "frontmatter": fm,
             "text": text,
         })
     return found
+
+
+TYPES = ("project", "feedback", "reference", "user", "cursor")
+
+
+def note_type(filename):
+    """A note's type, read from its filename prefix.
+
+    The prefix and a `metadata.type` field carried the same fact in 286 of 291 notes, so one of them was
+    a copy. The filename wins: it is visible in every listing, it cannot drift from itself, and memory
+    files are never renamed, so it is as stable as a field. A name with no known prefix is untyped, which
+    behaves as an ordinary note -- only the project receipt rule stops applying to it.
+    """
+    prefix = filename.split("_")[0] if "_" in filename else ""
+    return prefix if prefix in TYPES else ""
 
 
 def _priority(value):

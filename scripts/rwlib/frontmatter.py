@@ -51,6 +51,46 @@ def parse(block):
     return flat
 
 
+def problems(text):
+    """Frontmatter this parser accepts but does not mean what it says. Returns a list of messages.
+
+    The supported subset is deliberate (§ module docstring), but everything outside it is skipped in
+    silence, which is the dangerous part: the value is simply gone and every later check sees a note
+    that looks fine. These three are what a person or a YAML-aware editor actually writes.
+    """
+    if not text or not text.startswith("---"):
+        return []
+    end = text.find("\n---", 3)
+    if end == -1:
+        return ["frontmatter opens with --- but never closes, so none of it is read"]
+    found, seen, parent = [], {}, None
+    for raw in text[3:end].strip("\n").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("- ") or line.startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip())
+        if indent == 0:
+            parent = None
+        match = KEY.match(line)
+        if not match:
+            if re.match(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+\s*:", line):
+                found.append(f"`{line[:60]}` is dropped: a dotted key only works as a nested one "
+                             f"(`metadata:` on its own line, then the key indented under it)")
+            continue
+        key, value = match.group(1), match.group(2).strip()
+        if value == "" and indent == 0:
+            parent = key
+            continue
+        if value in ("|", ">", "|-", ">-"):
+            found.append(f"`{key}` is a YAML block scalar; this parser stores the marker itself, so the "
+                         f"value becomes \"{value}\" and the lines under it are lost. Put it on one line.")
+        dotted = f"{parent}.{key}" if parent and indent > 0 else key
+        if dotted in seen:
+            found.append(f"`{dotted}` is set twice; the last one silently wins")
+        seen[dotted] = value
+    return found
+
+
 def get(flat, *keys, default=None):
     for key in keys:
         value = flat.get(key)
