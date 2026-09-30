@@ -508,3 +508,39 @@ class LinkFormTests(HookTestCase):
     def test_a_path_link_to_a_missing_file_is_still_reported(self):
         self.write_and_capture("memory/project_a.md", note("a", "d", "See [doc](~/definitely/not/here.md)."))
         self.assertIn("links to missing", self.lint())
+
+
+class PathLinkTests(HookTestCase):
+    """[text](target) is also URL markup, so only something that can be a local path is checked."""
+
+    def lint(self):
+        out = subprocess.run(["python3", str(RW), "lint"], capture_output=True, text=True,
+                             env=self.env(), check=False)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout
+
+    def test_urls_anchors_and_other_schemes_are_left_alone(self):
+        body = ("[a](https://example.com/x) [b](http://example.com) [c](mailto:someone@example.com) "
+                "[d](ftp://host/f) [e](//cdn.example.com/x) [f](#a-heading)")
+        self.write_and_capture("memory/project_a.md", note("a", "d", body))
+        self.assertNotIn("links to missing", self.lint())
+
+    def test_a_link_to_a_file_that_is_not_markdown_is_checked(self):
+        """The pattern matched only .md, so a link to a script or a directory went unchecked."""
+        self.write_and_capture("memory/project_a.md", note("a", "d", "See [script](run.py)."))
+        out = self.lint()
+        self.assertIn("links to missing run.py", out)
+
+    def test_a_directory_target_resolves(self):
+        (self.home / "memory" / "sub").mkdir()
+        self.write_and_capture("memory/project_a.md", note("a", "d", "See [dir](sub)."))
+        self.assertNotIn("links to missing", self.lint())
+
+    def test_an_anchor_on_a_real_file_resolves(self):
+        self.write_and_capture("memory/project_t.md", note("t", "d", "Body."), turn="t1")
+        self.write_and_capture("memory/project_a.md", note("a", "d", "See [t](project_t.md#section)."), turn="t2")
+        self.assertNotIn("links to missing", self.lint())
+
+    def test_a_path_shown_as_an_example_is_not_checked(self):
+        self.write_and_capture("memory/project_a.md", note("a", "d", "Write `[Title](path)` for a file."))
+        self.assertNotIn("links to missing", self.lint())

@@ -76,7 +76,11 @@ def install_git_hook(home, rw_path):
     return 0
 
 RELITIGATE = re.compile(r"re-?litigate|don.t revisit|do not revisit|don.t rebuild", re.I)
-LINK = re.compile(r"\]\(([^)#\s]+\.md)(?:#[^)]*)?\)")
+# Any link target, not only .md: a note may point at a script, a directory or a repo, and
+# "the path exists" should hold for all of them.
+LINK = re.compile(r"\]\(([^)\s]+)\)")
+# A URI scheme: http:, https:, mailto:, ftp:. Not a local path, so not existence-checked.
+URL = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*:")
 IGNORED = ("sessions/", ".state/")
 
 
@@ -408,14 +412,19 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False, docs=Fa
     for path in link_sources:
         if not path.exists():
             continue
-        for target in LINK.findall(path.read_text(encoding="utf-8", errors="replace")):
-            if target.startswith(("http://", "https://")):
+        for target in LINK.findall(checks.prose_only(path.read_text(encoding="utf-8", errors="replace"))):
+            # `[text](target)` is also the markup for a URL, so only something that can be a local
+            # path is existence-checked. Anything carrying a scheme (http:, mailto:, ftp:),
+            # protocol-relative `//host`, or an in-page `#anchor` is left alone.
+            if URL.match(target) or target.startswith(("//", "#")):
                 continue
             # A link may point outside the memory folder entirely -- a doc in a repo, a skill at
             # ~/.claude/skills/<name>/SKILL.md. Resolving everything relative to memory/ reported
             # those as missing, which is why notes reached for [[wiki links]] to name them instead.
-            candidate = Path(target).expanduser()
-            resolved = candidate if candidate.is_absolute() else path.parent / target
+            # A trailing #anchor names a heading inside the file, not part of its path.
+            bare = target.split("#")[0]
+            candidate = Path(bare).expanduser()
+            resolved = candidate if candidate.is_absolute() else path.parent / bare
             if not resolved.exists():
                 problems.append(f"memory/{path.name} links to missing {target}")
     for path in [*sorted(memory.glob("index-*.md")), memory / "MEMORY.md"]:
