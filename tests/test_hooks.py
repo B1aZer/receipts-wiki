@@ -251,6 +251,17 @@ class ShellWriteTests(HookTestCase):
         context = (result or {}).get("hookSpecificOutput", {}).get("additionalContext") or ""
         self.assertNotIn("with a shell command instead of Write or Edit", context)
 
+    def test_a_plan_outside_memory_is_versioned_too(self):
+        """plans/ holds long-form maintainer documents: private, durable, too large to be notes.
+        They get history, but no frontmatter, no index line and no note budget."""
+        plans = self.home / "plans"
+        plans.mkdir()
+        (plans / "plan-thing.md").write_text("# A plan\n\nLong-form, no frontmatter.\n")
+        import sys
+        sys.path.insert(0, str(RW.parent))
+        from rwlib import gitlog
+        self.assertIn("plans/plan-thing.md", gitlog.dirty_paths(self.home))
+
     def test_file_changed_before_the_turn_is_left_to_catch_up(self):
         path = self.home / "memory" / "old.md"
         path.write_text(note("old-note", "changed before this turn", "Body."))

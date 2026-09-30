@@ -57,6 +57,14 @@ def claude_settings_path():
     return Path(raw).expanduser()
 
 
+# What the memory repository versions. `memory/` and `AGENTS.md` are the notes and the rules; `plans/`
+# holds long-form maintainer documents that are private, durable and too large to be notes — a plan is
+# not a fact, so it gets no frontmatter, no index line and no 12 KB budget, but it does get history.
+# Anything else in the home is either ignored by the home's own .gitignore (sessions/, .state/,
+# proposals/) or deliberately not the plugin's business.
+VERSIONED = ("memory", "AGENTS.md", "plans")
+
+
 def tracked(file_path):
     """Return the path relative to the memory home when hooks should act on it, else None.
 

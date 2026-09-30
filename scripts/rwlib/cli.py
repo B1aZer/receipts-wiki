@@ -26,7 +26,7 @@ RECEIPTS_WIKI_HOME="$(git rev-parse --show-toplevel)" exec python3 "$RW" precomm
 
 def precommit(home):
     """Check the staged memory files of any commit. Exit status 1 blocks the commit."""
-    staged = gitlog.git(home, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "--", "memory", "AGENTS.md").stdout.split()
+    staged = gitlog.git(home, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "--", *config.VERSIONED).stdout.split()
     problems, warnings = [], []
     for rel in staged:
         if not rel.endswith(".md"):
@@ -332,7 +332,7 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False, docs=Fa
     else:
         if gitlog.git(home, "fsck", "--no-progress").returncode != 0:
             problems.append("git fsck reports problems in the memory history")
-        dirty = gitlog.git(home, "status", "--porcelain", "--untracked-files=all", "--", "memory", "AGENTS.md").stdout.strip()
+        dirty = gitlog.git(home, "status", "--porcelain", "--untracked-files=all", "--", *config.VERSIONED).stdout.strip()
         if dirty:
             warnings.append(f"{len(dirty.splitlines())} memory file(s) have uncommitted changes; they are committed at the end of the writing session's turn, or as external.change at the next catch-up")
         health = state.load_health()

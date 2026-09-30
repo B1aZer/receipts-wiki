@@ -5,7 +5,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from . import frontmatter
+from . import config, frontmatter
 
 VERBS = {
     "fact.added": "add",
@@ -77,17 +77,17 @@ def head_content(home, rel):
 
 
 def tracked(home):
-    return {line for line in git(home, "ls-files", "--", "memory", "AGENTS.md").stdout.splitlines() if line}
+    return {line for line in git(home, "ls-files", "--", *config.VERSIONED).stdout.splitlines() if line}
 
 
 def dirty_paths(home):
     """Memory paths whose working copy differs from HEAD, including untracked files."""
     names = set()
     if has_head(home):
-        names.update(git(home, "diff", "HEAD", "--name-only", "--", "memory", "AGENTS.md").stdout.splitlines())
+        names.update(git(home, "diff", "HEAD", "--name-only", "--", *config.VERSIONED).stdout.splitlines())
     else:
-        names.update(git(home, "ls-files", "--", "memory", "AGENTS.md").stdout.splitlines())
-    names.update(git(home, "ls-files", "--others", "--exclude-standard", "--", "memory", "AGENTS.md").stdout.splitlines())
+        names.update(git(home, "ls-files", "--", *config.VERSIONED).stdout.splitlines())
+    names.update(git(home, "ls-files", "--others", "--exclude-standard", "--", *config.VERSIONED).stdout.splitlines())
     return sorted(name for name in names if name)
 
 
