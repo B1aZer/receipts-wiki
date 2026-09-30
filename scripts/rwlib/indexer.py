@@ -206,7 +206,9 @@ def audit(home):
     for path in sorted(memory.glob("index-*.md")):
         rel = f"memory/{path.name}"
         try:
-            raw = path.read_bytes()
+            # Characters, not bytes: the session-start hook slices the decoded text, so a file full of
+            # em dashes and arrows measures larger in bytes than the loader will ever care about.
+            raw = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         area = path.name[len("index-"):-len(".md")]
@@ -216,8 +218,8 @@ def audit(home):
         # be as long as the structural budget allows, and warning about it would be noise.
         if len(raw) > config.AREA_INDEX_CHARS and area in loaded:
             found.append(
-                f"{rel} is {len(raw)} bytes and sessions working in {loaded[area]} load it, so only its first "
-                f"{config.AREA_INDEX_CHARS} characters reach them and the rest is silently dropped. Split the "
+                f"{rel} is {len(raw)} characters and sessions working in {loaded[area]} load it, so only its "
+                f"first {config.AREA_INDEX_CHARS} reach them and the rest is silently dropped. Split the "
                 f"area (set metadata.area on the notes that belong elsewhere) or shorten the lines.")
         if not is_generated_index(home, rel) and counts.get(area):
             found.append(

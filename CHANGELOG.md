@@ -39,6 +39,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- The index load-budget warning counts characters, not bytes, which is what the session-start hook actually slices. On an index full of em dashes and arrows the two differ by over a hundred, so the check fired on files that fit.
+
 - Documented the three frontmatter fields that belong to Claude Code rather than to this plugin — `node_type`, `originSessionId` and `modified` — which its auto-memory stamps on write. Nothing here reads them and removing them only invites them back. Worth writing down mainly for one trap: `modified` is not the last-change time, since it updates only on a write through Claude Code, so a script, another agent or a hand edit leaves it stale. On the author's home it was behind git on 221 of 291 notes. Git is the authority.
 
 - Path links are checked properly. The pattern matched only targets ending in `.md`, so a link to a script, a directory or a repo was never verified at all, and every target was resolved relative to `memory/`, so a doc in another repo or a skill at `~/.claude/skills/<name>/SKILL.md` was reported as missing — which is why notes reached for `[[wiki links]]` to name those instead, where nothing checks them. Now any target is checked, `~` and absolute paths resolve, a trailing `#anchor` is not part of the path, and the form's other job is respected: a URI scheme (`http:`, `mailto:`, `ftp:`), a protocol-relative `//host` or an in-page `#anchor` is left alone, as is a path shown inside a code span as an example. On the author's home 368 of 369 path links resolve, and the exception is a syntax example.
