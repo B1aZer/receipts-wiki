@@ -471,3 +471,40 @@ class RankInProseRuleTests(HookTestCase):
     def test_says_nothing_when_rank_is_only_a_field(self):
         self.write_and_capture("memory/cursor_d.md", self.cursor("cursor-d", "ship the thing", priority=1))
         self.assertNotIn("rank-in-prose", self.lint())
+
+
+class LinkFormTests(HookTestCase):
+    """Two link forms: [[name]] is a memory note, [text](path) is anything on disk."""
+
+    def lint(self):
+        out = subprocess.run(["python3", str(RW), "lint"], capture_output=True, text=True,
+                             env=self.env(), check=False)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout
+
+    def test_a_link_to_a_note_not_written_yet_is_left_alone(self):
+        """AGENTS.md: a [[name]] matching no note marks something worth writing later, not an error."""
+        self.write_and_capture("memory/project_a.md", note("a", "d", "See [[nothing-like-this]]."))
+        self.assertNotIn("link-wrong-form", self.lint())
+
+    def test_names_the_fix_for_a_md_suffix(self):
+        self.write_and_capture("memory/project_target.md", note("project-target", "d", "Body."), turn="t1")
+        self.write_and_capture("memory/project_a.md", note("a", "d", "See [[project_target.md]]."), turn="t2")
+        self.assertIn("write [[project-target]]", self.lint())
+
+    def test_ignores_link_syntax_shown_as_an_example(self):
+        """Notes that document the syntax write `[[link]]` in a code span; four do here."""
+        self.write_and_capture("memory/project_a.md", note("a", "d", "The `[[link]]` graph, and:\n\n```\n[[id]]\n```\n"))
+        self.assertNotIn("link-wrong-form", self.lint())
+
+    def test_a_path_link_outside_the_memory_folder_resolves(self):
+        """Resolving every target against memory/ reported real files as missing, which is why notes
+        reached for [[wiki links]] to name skills and docs instead."""
+        outside = self.tmp / "elsewhere.md"
+        outside.write_text("hello\n")
+        self.write_and_capture("memory/project_a.md", note("a", "d", f"See [doc]({outside})."))
+        self.assertNotIn("links to missing", self.lint())
+
+    def test_a_path_link_to_a_missing_file_is_still_reported(self):
+        self.write_and_capture("memory/project_a.md", note("a", "d", "See [doc](~/definitely/not/here.md)."))
+        self.assertIn("links to missing", self.lint())

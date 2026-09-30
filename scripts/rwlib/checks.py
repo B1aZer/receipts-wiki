@@ -26,6 +26,7 @@ RULES = {
     "field-duplicated": "a note restating its own name or description inside metadata, where nothing reads it",
     "rank-in-prose": "a note stating a rank in words when rank is owned by metadata.priority",
     "frontmatter-lost": "frontmatter the parser accepts but silently drops or overwrites",
+    "link-wrong-form": "[[link]] used for a note's filename or for a skill, where a path link belongs",
 }
 
 MAX_NOTE_BYTES = 12000
@@ -62,6 +63,21 @@ def _hand_written_index(home, area):
     if (Path(home) / rel).exists() and not indexer.is_generated_index(home, rel):
         return rel
     return None
+
+
+SKILLS = Path("~/.claude/skills").expanduser()
+FENCE = re.compile(r"```.*?```", re.S)
+CODE_SPAN = re.compile(r"`[^`\n]*`")
+
+
+def prose_only(text):
+    """The text with fenced blocks and inline code blanked out, lengths preserved.
+
+    A note documenting the link syntax writes `[[link]]` or `[[id]]` in a code span. Those are
+    examples, not references; counting them would make this check cry wolf on four notes here.
+    """
+    text = FENCE.sub(lambda m: " " * len(m.group(0)), text or "")
+    return CODE_SPAN.sub(lambda m: " " * len(m.group(0)), text)
 
 
 def _bare(text):
@@ -141,6 +157,20 @@ def note_rules(home, subjects, items=None, skip=()):
             found.append(("note-too-big", rel,
                           f"{rel} is {size // 1000} KB, over the {MAX_NOTE_BYTES // 1000} KB note budget, so it reads as a log. "
                           "Keep the current belief at the top and move finished or separate facts into their own notes."))
+        # A [[link]] to a note that does not exist yet is deliberate: it marks something worth writing
+        # later. So this reports only the two cases that cannot be that — a link naming an existing note
+        # by its filename, and a link naming a skill, which is a thing on disk and wants a path instead.
+        for raw in WIKILINK.findall(prose_only(item["text"])):
+            target = raw.strip()
+            if gitlog.slug(target) in known or _bare(target) in bare:
+                continue
+            if target.lower().endswith(".md") and gitlog.slug(target[:-3]) in known:
+                found.append(("link-wrong-form", rel, f"{rel} links [[{target}]] with a .md suffix; the link form is "
+                                                      f"the note's name, so write [[{gitlog.slug(target[:-3])}]]."))
+            elif (SKILLS / gitlog.slug(target)).is_dir():
+                found.append(("link-wrong-form", rel,
+                              f"{rel} links [[{target}]], which is a skill rather than a note. [[ ]] means a memory "
+                              f"note; anything on disk is a path link — [{target}](~/.claude/skills/{target}/SKILL.md)."))
         misspelled = {}
         for link in WIKILINK.findall(item["text"]):
             if gitlog.slug(link) not in known and _bare(link) in bare:

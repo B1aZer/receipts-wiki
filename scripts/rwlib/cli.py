@@ -375,10 +375,15 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False, docs=Fa
         if not fm:
             problems.append(f"{rel} has no frontmatter")
         else:
-            for key, value in (("name", frontmatter.get(fm, "name")), ("description", frontmatter.get(fm, "description")),
-                               ("type", frontmatter.get(fm, "metadata.type", "type"))):
+            for key, value in (("name", frontmatter.get(fm, "name")), ("description", frontmatter.get(fm, "description"))):
                 if not value:
                     warnings.append(f"{rel} is missing {key}")
+            # The type is the filename prefix, not a field, so "missing" means the name carries none.
+            if not item["type"]:
+                warnings.append(f"{rel} is untyped: its filename carries no type prefix "
+                                f"({', '.join(t + '_' for t in indexer.TYPES)}), so the rules that depend on a "
+                                "type do not apply to it. Memory files are never renamed, so this is a note to "
+                                "live with rather than fix.")
         names.setdefault(item["name"], []).append(rel)
         label = secrets.find_secret(text)
         if label:
@@ -404,7 +409,14 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False, docs=Fa
         if not path.exists():
             continue
         for target in LINK.findall(path.read_text(encoding="utf-8", errors="replace")):
-            if not target.startswith(("http://", "https://")) and not (path.parent / target).exists():
+            if target.startswith(("http://", "https://")):
+                continue
+            # A link may point outside the memory folder entirely -- a doc in a repo, a skill at
+            # ~/.claude/skills/<name>/SKILL.md. Resolving everything relative to memory/ reported
+            # those as missing, which is why notes reached for [[wiki links]] to name them instead.
+            candidate = Path(target).expanduser()
+            resolved = candidate if candidate.is_absolute() else path.parent / target
+            if not resolved.exists():
                 problems.append(f"memory/{path.name} links to missing {target}")
     for path in [*sorted(memory.glob("index-*.md")), memory / "MEMORY.md"]:
         if path.exists():

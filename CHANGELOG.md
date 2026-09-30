@@ -37,6 +37,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Path links resolve outside the memory folder. Every `[text](target)` was resolved relative to `memory/`, so a link to a document in a repo or a skill at `~/.claude/skills/<name>/SKILL.md` was reported as missing — which is why notes reached for `[[wiki links]]` to name those instead, where nothing checks them at all. Targets are now expanded and absolute paths accepted, giving the two forms a clean split: `[[name]]` is a memory note and matching none yet is fine, since it marks one worth writing later, while `[text](path)` is anything on disk and a missing path is a problem.
+- Lint rule `link-wrong-form`: a `[[link]]` carrying a note's `.md` filename instead of its name, or naming a skill. Deliberately narrow — a link to a note nobody has written yet is a feature, so only the cases that cannot be that are reported.
+- `lint` no longer warns that 286 notes are "missing type", which it did by reading a field that no longer exists. It reports the five notes whose filename carries no type prefix instead.
+
 - A note's type comes from its filename prefix (`project_`, `feedback_`, `reference_`, `user_`, `cursor_`) instead of a `metadata.type` field. The two carried the same fact in 286 of 291 notes on the author's home, so one was a copy; the filename wins because it is visible in every listing, cannot drift from itself, and memory files are never renamed. A name with no known prefix is untyped and behaves as an ordinary note — on that home five legacy files, all of which already satisfied the only rule they lose.
 - Lint rule `frontmatter-lost`: frontmatter this parser accepts but does not mean — a dotted key written at the top level (dropped entirely, and the docs refer to keys in exactly that notation), a YAML block scalar (the value becomes the `|` marker and the lines under it are lost), a duplicate key (last one silently wins), and frontmatter that never closes. The supported subset is deliberate; failing in silence was not.
 
