@@ -242,6 +242,15 @@ class ShellWriteTests(HookTestCase):
         self.assertIn("relative date", context)
         self.assertIsNone(self.prompt(turn="t2"))
 
+    def test_regenerating_memory_md_is_not_reported_as_an_unchecked_shell_write(self):
+        """build-index writes MEMORY.md itself; warning about it every run trains the warning away."""
+        self.prompt(turn="t1")
+        (self.home / "memory" / "MEMORY.md").write_text("# Memory map\n\n- a line the generator wrote\n")
+        self.assertIsNone(self.stop(turn="t1"))
+        result = self.prompt(turn="t2")
+        context = (result or {}).get("hookSpecificOutput", {}).get("additionalContext") or ""
+        self.assertNotIn("with a shell command instead of Write or Edit", context)
+
     def test_file_changed_before_the_turn_is_left_to_catch_up(self):
         path = self.home / "memory" / "old.md"
         path.write_text(note("old-note", "changed before this turn", "Body."))
@@ -578,6 +587,25 @@ class TurnCheckTests(HookTestCase):
         self.assertIn("memory/index-api.md is written by hand", text)
         self.write("memory/index-api.md", "# api\n\n- [ttl](./project_ttl.md)\n", turn="t2")
         self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Six minutes."), turn="t2")
+        self.assertEqual(self.notices("t3"), "")
+
+    def test_decision_note_must_name_what_it_rejected_and_where(self):
+        """A decision note exists to stop an option being re-litigated; without the loser and the
+        origin it is a conclusion in the wrong type, and an unsourced reason is the one LLM-written
+        rationale gets wrong (arXiv 2504.20781)."""
+        self.write_and_capture("memory/decision_cache.md",
+                               note("decision-cache", "we cache quotes for five minutes",
+                                    "Chose a five minute TTL. See [[quotes-cache-ttl]]."))
+        text = self.notices("t2")
+        self.assertIn("names no rejected option", text)
+        self.assertIn("nothing to check it against", text)
+        self.write_and_capture("memory/decision_cache.md",
+                               note("decision-cache", "we cache quotes for five minutes",
+                                    "Chose a five minute TTL.\n\nRejected: no cache at all, because p99 tripled "
+                                    "in the 2026-09-30 load run. Rejected: one hour, because stale quotes "
+                                    "reached users.\n\nEvidence: commit a1b2c3d, session s1 turn t2. "
+                                    "Constrains [[quotes-cache-ttl]]."),
+                               turn="t2")
         self.assertEqual(self.notices("t3"), "")
 
     def test_cursor_left_behind_by_a_linked_note(self):

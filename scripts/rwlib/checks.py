@@ -27,6 +27,8 @@ RULES = {
     "rank-in-prose": "a note stating a rank in words when rank is owned by metadata.priority",
     "frontmatter-lost": "frontmatter the parser accepts but silently drops or overwrites",
     "link-wrong-form": "[[link]] used for a note's filename or for a skill, where a path link belongs",
+    "decision-without-alternative": "a decision note naming no rejected option, which makes it a conclusion in the wrong type",
+    "decision-without-evidence": "a decision note with no pointer to where the option was ruled out",
 }
 
 MAX_NOTE_BYTES = 12000
@@ -68,6 +70,13 @@ def _hand_written_index(home, area):
 SKILLS = Path("~/.claude/skills").expanduser()
 FENCE = re.compile(r"```.*?```", re.S)
 CODE_SPAN = re.compile(r"`[^`\n]*`")
+# What a decision note must carry. "Rejected" is the house word; the alternatives are the forms a
+# session actually writes when it means the same thing.
+REJECTED = re.compile(r"\b(rejected|ruled out|not chosen|discarded|declined|instead of|considered and)\b", re.I)
+# An origin the reader can open: a session/turn id, a commit sha, a file path, an arXiv id, a URL,
+# a measured number, or an absolute date.
+EVIDENCE = re.compile(r"(\b[0-9a-f]{7,40}\b|\barXiv[: ]|https?://|\bturn\b|\bsession\b|"
+                      r"\b\d{4}-\d{2}-\d{2}\b|\b\d+(\.\d+)?%|\b[\w./-]+\.(py|md|json|ts|tsv|jsonl):?\d*)", re.I)
 
 
 def prose_only(text):
@@ -82,7 +91,7 @@ def prose_only(text):
 
 def _bare(text):
     """A name without its type prefix, so project-x, project_x and x compare equal."""
-    return re.sub(r"^(project|feedback|reference|user|cursor)-", "", gitlog.slug(text))
+    return re.sub(r"^(project|feedback|reference|user|cursor|decision)-", "", gitlog.slug(text))
 
 
 def _slugs(item):
@@ -171,6 +180,22 @@ def note_rules(home, subjects, items=None, skip=()):
                 found.append(("link-wrong-form", rel,
                               f"{rel} links [[{target}]], which is a skill rather than a note. [[ ]] means a memory "
                               f"note; anything on disk is a path link — [{target}](~/.claude/skills/{target}/SKILL.md)."))
+        # A decision note exists to stop an option being re-litigated, so it is only worth its type if it
+        # names what lost and points at where that happened. Writing what it rejected is a write policy,
+        # and policy execution is the measured failure of memory agents (AdaMem, arXiv 2606.21144), so it
+        # is checked rather than documented. The pointer matters for a second reason: LLM-written design
+        # rationale scores ~0.27 precision with 1.6-3.2% of arguments actively misleading (arXiv
+        # 2504.20781), so a reason with no origin is not trustworthy enough to act on later.
+        if item["type"] == "decision":
+            body = prose_only(item["text"])
+            if not REJECTED.search(body):
+                found.append(("decision-without-alternative", rel,
+                              f"{rel} is a decision note but names no rejected option. Add a `Rejected:` line per "
+                              "option with the reason it lost, or make this an ordinary note about the conclusion."))
+            if not EVIDENCE.search(body):
+                found.append(("decision-without-evidence", rel,
+                              f"{rel} states a decision with nothing to check it against. Cite where it was ruled "
+                              "out: a session and turn, a commit, a measurement, or a file and line."))
         misspelled = {}
         for link in WIKILINK.findall(item["text"]):
             if gitlog.slug(link) not in known and _bare(link) in bare:

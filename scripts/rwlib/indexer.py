@@ -93,7 +93,7 @@ def notes(home, include=None):
     return found
 
 
-TYPES = ("project", "feedback", "reference", "user", "cursor")
+TYPES = ("project", "feedback", "reference", "user", "cursor", "decision")
 
 
 def note_name(filename, fm):

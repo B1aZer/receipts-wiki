@@ -66,7 +66,7 @@ def credit_shell_writes(home, session, data, turn):
     dirty, others = set(gitlog.dirty_paths(home)), claims(exclude=session)
     credited = []
     for rel in recent:
-        if rel in dirty and rel not in data["pending"] and rel not in others and not indexer.is_generated_index(home, rel):
+        if rel in dirty and rel not in data["pending"] and rel not in others and not indexer.is_generated(home, rel):
             data["pending"][rel] = {"turn": turn, "via": "shell", "at": state.now_iso()}
             credited.append(rel)
     return credited
