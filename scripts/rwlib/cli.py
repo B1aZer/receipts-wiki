@@ -364,6 +364,8 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False, docs=Fa
         if label:
             problems.append(f"AGENTS.md contains a secret value ({label})")
 
+    warnings.extend(indexer.audit(home))
+
     notes = indexer.notes(home)
     reads = state.last_reads()
     names = {}

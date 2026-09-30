@@ -312,3 +312,64 @@ class CommandTests(HookTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IndexAuditTests(HookTestCase):
+    """indexer.audit: the standing conditions of the index FILES, which lint reports (nothing else did)."""
+
+    def audit(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from rwlib import indexer
+        return indexer.audit(self.home)
+
+    def record_session_cwd(self, session, cwd):
+        """Write the session state directly: state.save() resolves the home from the environment."""
+        import json as _json
+        folder = self.home / ".state" / "sessions"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"{session}.json").write_text(_json.dumps({"session": session, "cwd": cwd,
+                                                             "reads": {}, "pending": {}}))
+
+    def big_index(self, area, size=9600):
+        """Past AREA_INDEX_CHARS. No markdown links in the padding: only the byte count matters here,
+        and fake links would raise unrelated "links to missing" problems."""
+        path = self.home / "memory" / f"index-{area}.md"
+        body = f"# {area} index\n\n"
+        path.write_text(body + "padding line, no links\n" * ((size - len(body)) // 23 + 1))
+        return path
+
+    def test_reports_an_index_a_session_actually_loads_and_is_truncated(self):
+        self.big_index("api")
+        self.record_session_cwd("s9", "/work/api")
+        found = " ".join(self.audit())
+        self.assertIn("index-api.md", found)
+        self.assertIn("/work/api", found)
+        self.assertIn("silently dropped", found)
+
+    def test_stays_quiet_about_a_big_index_no_session_loads(self):
+        """A sub-index nothing auto-loads may be long; warning about it would be noise."""
+        self.big_index("api")
+        found = " ".join(self.audit())
+        self.assertNotIn("silently dropped", found)
+
+    def test_reports_a_hand_written_index_that_holds_real_notes(self):
+        (self.home / "memory" / "index-api.md").write_text("# api index\n\n- [a-note](a.md) — by hand\n")
+        self.write_and_capture("memory/a.md", note("a-note", "api note", "Body."))
+        found = " ".join(self.audit())
+        self.assertIn("written by hand", found)
+        self.assertIn("area 'api'", found)
+
+    def test_says_nothing_about_a_generated_index(self):
+        self.write_and_capture("memory/a.md", note("a-note", "api note", "Body."))
+        self.assertEqual([w for w in self.audit() if "written by hand" in w], [])
+
+    def test_lint_surfaces_them_as_warnings(self):
+        self.big_index("api")
+        self.record_session_cwd("s9", "/work/api")
+        out = subprocess.run(["python3", str(RW), "lint"], capture_output=True, text=True,
+                             env=self.env(), check=False)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("index-api.md", out.stdout)
+        self.assertIn("silently dropped", out.stdout)

@@ -80,8 +80,10 @@ def save(session, data):
     _save_json(_session_path(session), data)
 
 
-def all_sessions():
-    folder = config.state_dir() / "sessions"
+def all_sessions(home=None):
+    """Every session's state. `home` makes this a function of its argument rather than of the
+    environment, which matters for any caller holding a home that is not the configured one."""
+    folder = (Path(home) / ".state" if home else config.state_dir()) / "sessions"
     for path in sorted(folder.glob("*.json")) if folder.exists() else []:
         data = _load_json(path)
         if data.get("session"):

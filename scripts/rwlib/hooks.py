@@ -422,25 +422,7 @@ def hook_prompt(payload):
 
 
 def area_index_for(home, cwd):
-    """The memory index for a working directory: the nearest folder, walking up from cwd, whose name matches
-    an existing memory/index-<name>.md. The user's home folder and the filesystem root are never matched."""
-    if not cwd:
-        return None
-    try:
-        path = Path(cwd).expanduser().resolve()
-    except (OSError, RuntimeError):
-        return None
-    home = Path(home)
-    if path == home or home in path.parents:
-        return None
-    stop = {Path.home().resolve(), Path(path.anchor)}
-    for folder in [path, *path.parents]:
-        if folder in stop:
-            break
-        index = home / "memory" / f"index-{gitlog.slug(folder.name)}.md"
-        if index.is_file():
-            return index
-    return None
+    return indexer.area_index_for(home, cwd)
 
 
 def _cursor_pointers(home, limit=8):

@@ -133,6 +133,8 @@ def record(home, changes, agent, session=None, turn=None, cwd=None, transcript=N
     note_rels = {rel for rel in rels if indexer.is_note(rel)}
     # A missing MEMORY.md is created too, so an agent can see an empty memory with one read.
     if note_rels or not (Path(home) / "memory" / "MEMORY.md").exists():
+        # Return value dropped on purpose: a turn must not print, and its budget/hand-written
+        # findings are standing conditions, which `receipts-wiki lint` reports via indexer.audit.
         indexer.build(home, include=gitlog.tracked(home) | note_rels)
     extra = [path for path in gitlog.dirty_paths(home)
              if indexer.is_generated(home, path) and path not in rels and path not in claimed]
