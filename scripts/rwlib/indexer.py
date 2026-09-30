@@ -81,7 +81,7 @@ def notes(home, include=None):
         fm, _ = frontmatter.split(text)
         found.append({
             "file": path.name,
-            "name": str(frontmatter.get(fm, "name") or path.stem),
+            "name": note_name(path.name, fm),
             "description": " ".join(str(frontmatter.get(fm, "description") or "").split()),
             "area": gitlog.slug(frontmatter.get(fm, "metadata.area", "area") or "general"),
             "status": str(frontmatter.get(fm, "status", "metadata.status") or "active"),
@@ -94,6 +94,16 @@ def notes(home, include=None):
 
 
 TYPES = ("project", "feedback", "reference", "user", "cursor")
+
+
+def note_name(filename, fm):
+    """A note's name: the `name` field when it carries something the filename cannot, else derived.
+
+    286 of 291 notes named themselves after their own file, so the field was a copy, and a copy is a
+    place to disagree. It stays optional for the handful where a descriptive name is better than a
+    path -- `never-retrieve-secrets-or-private-keys` rather than `feedback-secrets`.
+    """
+    return str(frontmatter.get(fm, "name") or gitlog.slug(filename[:-3] if filename.endswith(".md") else filename))
 
 
 def note_type(filename):

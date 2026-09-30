@@ -38,9 +38,10 @@ def precommit(home):
         if indexer.is_note(rel):
             fm, _ = frontmatter.split(text)
             if not fm:
-                problems.append(f"{rel} has no frontmatter (name, description, metadata.type)")
+                problems.append(f"{rel} has no frontmatter (description, metadata.area)")
             else:
-                missing = [key for key in ("name", "description") if not frontmatter.get(fm, key)]
+                # `name` is derived from the filename unless the note overrides it.
+                missing = [key for key in ("description",) if not frontmatter.get(fm, key)]
                 if missing:
                     problems.append(f"{rel} is missing {' and '.join(missing)} in its frontmatter")
         elif rel == "AGENTS.md":
@@ -379,7 +380,7 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False, docs=Fa
         if not fm:
             problems.append(f"{rel} has no frontmatter")
         else:
-            for key, value in (("name", frontmatter.get(fm, "name")), ("description", frontmatter.get(fm, "description"))):
+            for key, value in (("description", frontmatter.get(fm, "description")),):
                 if not value:
                     warnings.append(f"{rel} is missing {key}")
             # The type is the filename prefix, not a field, so "missing" means the name carries none.

@@ -363,8 +363,8 @@ def _shell_write_notice(home, rels):
             issues.append(f"{rel} uses a relative date ({phrase!r})")
         if indexer.is_note(rel):
             fm, _ = frontmatter.split(text)
-            if not fm or not frontmatter.get(fm, "name") or not frontmatter.get(fm, "description"):
-                issues.append(f"{rel} is missing frontmatter name or description")
+            if not fm or not frontmatter.get(fm, "description"):
+                issues.append(f"{rel} is missing a frontmatter description")
     found = f" The write gate would have flagged: {'; '.join(issues)}." if issues else ""
     return (f"receipts-wiki: in your last turn you changed {', '.join(rels)} with a shell command instead of Write or Edit. "
             f"It was recorded for that turn, but the write gate did not check it.{found} Use Write or Edit for memory files.")

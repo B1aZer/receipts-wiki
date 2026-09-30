@@ -544,3 +544,36 @@ class PathLinkTests(HookTestCase):
     def test_a_path_shown_as_an_example_is_not_checked(self):
         self.write_and_capture("memory/project_a.md", note("a", "d", "Write `[Title](path)` for a file."))
         self.assertNotIn("links to missing", self.lint())
+
+
+class DerivedNameTests(HookTestCase):
+    """`name` is derived from the filename unless the note overrides it with something better."""
+
+    def note_without_name(self, description, body, extra=""):
+        return f"---\ndescription: {description}\nmetadata:\n  area: api\n{extra}---\n\n{body}\n"
+
+    def items(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from rwlib import indexer
+        return {i["file"]: i for i in indexer.notes(self.home)}
+
+    def test_name_comes_from_the_filename_when_absent(self):
+        self.write_and_capture("memory/project_quotes_cache.md", self.note_without_name("d", "Body."))
+        self.assertEqual(self.items()["project_quotes_cache.md"]["name"], "project-quotes-cache")
+
+    def test_a_stored_name_still_wins(self):
+        self.write_and_capture("memory/feedback_secrets.md",
+                               note("never-retrieve-secrets", "d", "Body."))
+        self.assertEqual(self.items()["feedback_secrets.md"]["name"], "never-retrieve-secrets")
+
+    def test_a_note_without_a_name_is_indexed_and_linkable(self):
+        self.write_and_capture("memory/project_target.md", self.note_without_name("the target", "Body."), turn="t1")
+        self.write_and_capture("memory/project_a.md", note("a", "d", "See [[project-target]]."), turn="t2")
+        index = (self.home / "memory" / "index-api.md").read_text()
+        self.assertIn("- [project-target](project_target.md): the target", index)
+        out = subprocess.run(["python3", str(RW), "lint"], capture_output=True, text=True,
+                             env=self.env(), check=False).stdout
+        self.assertNotIn("is missing name", out)
+        self.assertNotIn("link-wrong-form", out)

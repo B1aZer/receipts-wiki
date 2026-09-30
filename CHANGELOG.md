@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `name` is optional and derives from the filename. It repeated the filename in 286 of 291 notes on the author's home, so the field was a copy in all but a handful; it stays for the ones where a name says what a path cannot, such as `never-retrieve-secrets-or-private-keys` for `feedback_secrets.md`. Writing a note no longer requires it, and the gate, lint and the pre-commit check no longer ask for it.
+
 - A workstream changing state or rank is now an event (`fact.status`), so the review queue reacts to it. Until now §3.4 fired only on supersede and retire, which meant the changes that go stale fastest passed unnoticed: a rank set on one cursor was contradicted by prose in another within a day and nothing reacted, because both edits looked ordinary. Scope is narrowed for these events to the notes that reference the workstream, not everything sharing a name the note happens to mention — on the live home the wide scope queued 21 notes for one rank change where the correct answer was 1.
 - Lint rule `rank-in-prose`: a note stating a rank in words when rank is owned by `metadata.priority`. It distinguishes the two cases, because they need different fixes — a note that owns no priority field is holding a copy of someone else's rank, while the owner restating its own field simply leaves the words behind when the field moves.
 
