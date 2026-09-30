@@ -42,12 +42,13 @@ Where the PostHog push stands. Next: send the José intro, then apply; if resumi
 
 ## File format
 
+The filename carries the type: `project_quotes_cache_ttl.md`.
+
 ```markdown
 ---
 name: quotes-cache-ttl
 description: /quotes cache TTL is 5 minutes; stale-price sample 2026-09-02
 metadata:
-  type: project
   area: api
   status: active
   last_verified: 2026-09-02
@@ -60,7 +61,9 @@ Why: at 60 minutes, 14 of 200 quotes sampled on 2026-09-02 used a price older th
 How to apply: re-run the stale-price sample before raising the TTL.
 ```
 
-The fact comes first. `description` is one line, because the index is built from it. `area` decides which index lists the note.
+The fact comes first. `description` is one line, because the index is built from it. `area` decides which index lists the note, and the filename prefix (`project_`, `feedback_`, `reference_`, `user_`, `cursor_`) is the type.
+
+Claude Code's auto-memory adds three fields of its own when it writes a note — `node_type`, `originSessionId` and `modified`. Leave them; nothing here reads them and removing them only invites them back. In particular **`modified` is not the last-change time**: it updates only on a write through Claude Code, so a script, another agent or a hand edit leaves it behind. Ask git instead, with `receipts-wiki history <note>`.
 
 ## Receipts
 
