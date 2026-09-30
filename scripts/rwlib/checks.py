@@ -23,6 +23,7 @@ RULES = {
     "cursor-not-updated": "a note changed while the cursor pointing at it did not (turn only)",
     "doc-unnamed": "document in a folder memory names that no note names (turn check, or the `lint --docs` sweep)",
     "cursor-ended-in-prose": "cursor whose own text says the work ended while its status still says active",
+    "field-duplicated": "a note restating its own name or description inside metadata, where nothing reads it",
 }
 
 MAX_NOTE_BYTES = 12000
@@ -98,6 +99,13 @@ def note_rules(home, subjects, items=None, skip=()):
             fix = (f"{where} is written by hand, so add one line linking ({item['file']}) there"
                    if where else f"check that metadata.area is set; the generated index for area '{item['area']}' should list it")
             found.append(("index-unlisted", rel, f"{rel} is not linked from any index, so later sessions will not find it: {fix}."))
+        for key in ("name", "description"):
+            inner = item["frontmatter"].get(f"metadata.{key}")
+            if inner and str(inner).strip() != str(item[key]).strip():
+                found.append(("field-duplicated", rel,
+                              f"{rel} sets both {key} and metadata.{key}, and they differ. Only the top-level "
+                              f"one is read, so the metadata copy is invisible and free to drift: "
+                              f"\"{str(inner)[:90]}\". Keep one."))
         if item["type"] == "cursor" and item["status"] != "retired":
             ended = ENDED.search(item["description"])
             if ended:

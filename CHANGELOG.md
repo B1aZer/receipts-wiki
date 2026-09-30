@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Lint rule `field-duplicated`: a note that sets both `description` and `metadata.description` (or the two `name` keys) to different values. Only the top-level key is read, so the second is invisible and free to drift from the one that counts. Seven notes on the author's home had one. Identical copies are ignored.
+
 - Cursors carry `metadata.priority` and the session-start block orders by it instead of by name, so the workstream that matters is the first one a session reads. Unranked cursors follow the ranked ones, still alphabetically. On the author's home the alphabet had put the top priority fourth of six, and a workstream that ended a week earlier fifth, presented identically to live work — one line of ordering standing between a session and the wrong first move.
 - Lint rule `cursor-ended-in-prose`: a cursor whose own description says CLOSED, REJECTED, RETIRED or ABANDONED while `metadata.status` still says active. The mechanism for ending a cursor already existed and simply was not used, which is the case for a check rather than a rule nobody reads.
 

@@ -407,3 +407,29 @@ class CursorStatusRuleTests(HookTestCase):
     def test_does_not_fire_on_an_ordinary_note(self):
         self.write_and_capture("memory/project_x.md", note("project-x", "the bid was REJECTED and the lane CLOSED", "Body."))
         self.assertNotIn("cursor-ended-in-prose", self.lint())
+
+
+class DuplicateFieldRuleTests(HookTestCase):
+    """field-duplicated: a note restating name/description inside metadata, where nothing reads it."""
+
+    def lint(self):
+        out = subprocess.run(["python3", str(RW), "lint"], capture_output=True, text=True,
+                             env=self.env(), check=False)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout
+
+    def test_flags_a_metadata_description_that_differs(self):
+        self.write_and_capture("memory/a.md", note("a-note", "the real one", "Body.",
+                                                   extra='  description: a different one\n'))
+        out = self.lint()
+        self.assertIn("field-duplicated", out)
+        self.assertIn("a different one", out)
+
+    def test_ignores_an_identical_copy(self):
+        self.write_and_capture("memory/a.md", note("a-note", "the same", "Body.",
+                                                   extra='  description: the same\n'))
+        self.assertNotIn("field-duplicated", self.lint())
+
+    def test_ignores_a_note_without_the_duplicate(self):
+        self.write_and_capture("memory/a.md", note("a-note", "only one", "Body."))
+        self.assertNotIn("field-duplicated", self.lint())
