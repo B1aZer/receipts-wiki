@@ -577,3 +577,24 @@ class DerivedNameTests(HookTestCase):
                              env=self.env(), check=False).stdout
         self.assertNotIn("is missing name", out)
         self.assertNotIn("link-wrong-form", out)
+
+
+class WrappedValueTests(HookTestCase):
+    """A frontmatter value wrapped onto a second line is silently truncated."""
+
+    def problems(self, text):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from rwlib import frontmatter
+        return frontmatter.problems(text)
+
+    def test_a_continuation_line_is_reported(self):
+        found = self.problems('---\nname: a\ndescription: "first half\nsecond half\nmetadata:\n  area: x\n---\nbody')
+        self.assertTrue(any("second half" in p for p in found), found)
+
+    def test_a_note_on_one_line_each_is_clean(self):
+        self.assertEqual(self.problems("---\nname: a\ndescription: d\nmetadata:\n  area: x\n---\nbody"), [])
+
+    def test_a_dash_list_is_not_mistaken_for_a_continuation(self):
+        self.assertEqual(self.problems("---\nname: a\nmetadata:\n  receipts:\n    - one\n    - two\n---\nbody"), [])

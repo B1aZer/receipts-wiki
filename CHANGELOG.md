@@ -39,6 +39,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- `frontmatter-lost` also reports a value wrapped onto a second line. The parser keeps the first line and skips the rest, so the value is quietly truncated — and editing the first line can leave the remainder orphaned, which is how it usually surfaces. Found by doing exactly that while migrating a live home: a description ended up with a stray quote and four words of the old text hanging off it, and every check still passed.
+
 - The index load-budget warning counts characters, not bytes, which is what the session-start hook actually slices. On an index full of em dashes and arrows the two differ by over a hundred, so the check fired on files that fit.
 
 - Documented the three frontmatter fields that belong to Claude Code rather than to this plugin — `node_type`, `originSessionId` and `modified` — which its auto-memory stamps on write. Nothing here reads them and removing them only invites them back. Worth writing down mainly for one trap: `modified` is not the last-change time, since it updates only on a write through Claude Code, so a script, another agent or a hand edit leaves it stale. On the author's home it was behind git on 221 of 291 notes. Git is the authority.

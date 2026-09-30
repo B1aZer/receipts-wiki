@@ -76,6 +76,12 @@ def problems(text):
             if re.match(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+\s*:", line):
                 found.append(f"`{line[:60]}` is dropped: a dotted key only works as a nested one "
                              f"(`metadata:` on its own line, then the key indented under it)")
+            else:
+                # A value wrapped onto a second line. The parser keeps the first line and skips this
+                # one, so the value is quietly truncated -- and an edit to the first line can leave
+                # the remainder orphaned, which is how it usually shows up.
+                found.append(f"`{line[:60]}` is dropped: it is not `key: value`, so if it continues "
+                             f"the line above, that value is silently truncated. Keep a value on one line.")
             continue
         key, value = match.group(1), match.group(2).strip()
         if value == "" and indent == 0:
