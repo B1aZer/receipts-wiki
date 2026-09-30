@@ -15,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from rwlib import watch  # noqa: E402
 
 
-def cursor(name, description, body):
+def cursor(name, description, body, priority=None, status=None):
+    extra = (f"  priority: {priority}\n" if priority is not None else "")
+    extra += (f"  status: {status}\n" if status else "")
     return (
         "---\n"
         f"name: {name}\n"
@@ -23,6 +25,7 @@ def cursor(name, description, body):
         "metadata:\n"
         "  type: cursor\n"
         "  area: api\n"
+        f"{extra}"
         "---\n\n"
         f"{body}\n"
     )
@@ -196,6 +199,23 @@ class WatchTestCase(HookTestCase):
         text = output["hookSpecificOutput"]["additionalContext"]
         self.assertIn("cursor-work: step one", text)
         self.assertNotIn("[moved", text)
+
+    def test_session_start_orders_cursors_by_priority_not_by_name(self):
+        """Alphabetical order put the author's top priority fourth of six and showed closed work as live."""
+        self.write_and_capture("memory/cursor_aaa.md", cursor("cursor-aaa", "third", "b", priority=3), turn="t1")
+        self.write_and_capture("memory/cursor_zzz.md", cursor("cursor-zzz", "first", "b", priority=1), turn="t2")
+        self.write_and_capture("memory/cursor_mmm.md", cursor("cursor-mmm", "unranked", "b"), turn="t3")
+        text = self.hook("session-start", {"session_id": "a"})["hookSpecificOutput"]["additionalContext"]
+        order = [ln.split(":")[0] for ln in text.splitlines() if ln.startswith("- cursor-")]
+        self.assertEqual(order, ["- cursor-zzz", "- cursor-aaa", "- cursor-mmm"])
+
+    def test_a_retired_cursor_is_not_listed_as_live_work(self):
+        self.write_and_capture("memory/cursor_done.md", cursor("cursor-done", "finished", "b", status="retired"),
+                               turn="t1")
+        self.write_and_capture("memory/cursor_live.md", cursor("cursor-live", "running", "b"), turn="t2")
+        text = self.hook("session-start", {"session_id": "a"})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("cursor-live", text)
+        self.assertNotIn("cursor-done", text)
 
     def test_generated_views_are_not_reported(self):
         self.write_and_capture("memory/one.md", note("one", "first", "body"), session="b", turn="t1")

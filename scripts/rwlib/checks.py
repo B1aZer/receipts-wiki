@@ -22,12 +22,16 @@ RULES = {
     "orphan-note": "note with no [[link]] in or out: nothing in memory connects it to anything (sweep only)",
     "cursor-not-updated": "a note changed while the cursor pointing at it did not (turn only)",
     "doc-unnamed": "document in a folder memory names that no note names (turn check, or the `lint --docs` sweep)",
+    "cursor-ended-in-prose": "cursor whose own text says the work ended while its status still says active",
 }
 
 MAX_NOTE_BYTES = 12000
 # A cursor's description is shown at every session start and in MEMORY.md, so it must stay one line.
 MAX_CURSOR_DESCRIPTION = 250
 WIKILINK = re.compile(r"\[\[([^\]|#]+)")
+# A cursor states its own state in prose; when that prose says the work ended, the status field should
+# agree, or the session-start block keeps presenting finished work as live.
+ENDED = re.compile(r"\b(CLOSED|REJECTED|RETIRED|ABANDONED|SHIPPED AND DONE|WORK ENDED)\b")
 
 
 def _index_texts(home):
@@ -94,6 +98,14 @@ def note_rules(home, subjects, items=None, skip=()):
             fix = (f"{where} is written by hand, so add one line linking ({item['file']}) there"
                    if where else f"check that metadata.area is set; the generated index for area '{item['area']}' should list it")
             found.append(("index-unlisted", rel, f"{rel} is not linked from any index, so later sessions will not find it: {fix}."))
+        if item["type"] == "cursor" and item["status"] != "retired":
+            ended = ENDED.search(item["description"])
+            if ended:
+                found.append(("cursor-ended-in-prose", rel,
+                              f"{rel} says \"{ended.group(0)}\" in its description but its status is "
+                              f"'{item['status']}', so every session start still lists it among live work. "
+                              "Set metadata.status: retired when the workstream has ended, or reword the "
+                              "description if it has not."))
         if item["type"] == "cursor" and len(item["description"]) > MAX_CURSOR_DESCRIPTION:
             found.append(("cursor-too-long", rel,
                           f"{rel}'s description is {len(item['description'])} characters; every session start shows it, so keep it "

@@ -373,3 +373,37 @@ class IndexAuditTests(HookTestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("index-api.md", out.stdout)
         self.assertIn("silently dropped", out.stdout)
+
+
+class CursorStatusRuleTests(HookTestCase):
+    """cursor-ended-in-prose: a cursor saying the work ended while its status still says active."""
+
+    def cursor(self, name, description, status=None):
+        extra = f"  status: {status}\n" if status else ""
+        return (f"---\nname: {name}\ndescription: {description}\nmetadata:\n"
+                f"  type: cursor\n  area: api\n{extra}---\n\nBody.\n")
+
+    def lint(self):
+        out = subprocess.run(["python3", str(RW), "lint"], capture_output=True, text=True,
+                             env=self.env(), check=False)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout
+
+    def test_flags_a_closed_cursor_still_marked_active(self):
+        self.write_and_capture("memory/cursor_gone.md", self.cursor("cursor-gone", "REJECTED at the screen; CLOSED"))
+        out = self.lint()
+        self.assertIn("cursor-ended-in-prose", out)
+        self.assertIn("cursor_gone.md", out)
+
+    def test_says_nothing_once_the_cursor_is_retired(self):
+        self.write_and_capture("memory/cursor_gone.md",
+                               self.cursor("cursor-gone", "REJECTED at the screen; CLOSED", status="retired"))
+        self.assertNotIn("cursor-ended-in-prose", self.lint())
+
+    def test_says_nothing_about_a_live_cursor(self):
+        self.write_and_capture("memory/cursor_live.md", self.cursor("cursor-live", "PR open; NEXT = find a reviewer"))
+        self.assertNotIn("cursor-ended-in-prose", self.lint())
+
+    def test_does_not_fire_on_an_ordinary_note(self):
+        self.write_and_capture("memory/project_x.md", note("project-x", "the bid was REJECTED and the lane CLOSED", "Body."))
+        self.assertNotIn("cursor-ended-in-prose", self.lint())

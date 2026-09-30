@@ -86,10 +86,25 @@ def notes(home, include=None):
             "area": gitlog.slug(frontmatter.get(fm, "metadata.area", "area") or "general"),
             "status": str(frontmatter.get(fm, "status", "metadata.status") or "active"),
             "type": str(frontmatter.get(fm, "metadata.type", "type") or ""),
+            "priority": _priority(frontmatter.get(fm, "metadata.priority", "priority")),
             "frontmatter": fm,
             "text": text,
         })
     return found
+
+
+def _priority(value):
+    """A cursor's rank, lower first. Anything unset or unparseable sorts after everything set."""
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def by_priority(item):
+    """Sort key for cursors: stated priority first, then name. Alphabetical order put the top
+    priority fourth of six on the author's home and showed finished work as though it were live."""
+    return (item.get("priority") is None, item.get("priority") or 0, item["name"].lower())
 
 
 def note_line(item):
@@ -110,7 +125,7 @@ def render_cursors(cursors):
     if not cursors:
         return []
     lines = ["## Where things stand", ""]
-    lines.extend(note_line(item) for item in sorted(cursors, key=lambda n: n["name"].lower()))
+    lines.extend(note_line(item) for item in sorted(cursors, key=by_priority))
     lines.append("")
     return lines
 

@@ -436,7 +436,7 @@ def _cursor_pointers(home, limit=8):
         cursors = [item for item in indexer.notes(home) if item["type"] == "cursor" and item["status"] != "retired"]
     except OSError:
         return ""
-    cursors = sorted(cursors, key=lambda n: n["name"].lower())[:limit]
+    cursors = sorted(cursors, key=indexer.by_priority)[:limit]
     rels = {f"memory/{item['file']}": item for item in cursors}
     try:
         moved = watch.last_reasons(home, set(rels))
