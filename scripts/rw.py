@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rwlib import cli, config, hooks  # noqa: E402
 
 HOOKS = {
+    "action": hooks.hook_action,
     "session-start": hooks.hook_session_start,
     "session-area": hooks.hook_session_area,
     "prompt": hooks.hook_prompt,

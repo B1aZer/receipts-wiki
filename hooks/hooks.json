@@ -6,13 +6,21 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "session-start"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "session-start"
+            ],
             "timeout": 20
           },
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "session-area"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "session-area"
+            ],
             "timeout": 10
           }
         ]
@@ -24,7 +32,11 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "prompt"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "prompt"
+            ],
             "timeout": 20
           }
         ]
@@ -37,7 +49,11 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "gate"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "gate"
+            ],
             "timeout": 10
           }
         ]
@@ -49,13 +65,19 @@
             "type": "command",
             "if": "Bash(git *)",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "history"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "history"
+            ],
             "timeout": 10
           },
           {
             "type": "command",
             "command": "sh",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/shell-guard.sh"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/shell-guard.sh"
+            ],
             "timeout": 10
           }
         ]
@@ -68,7 +90,11 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "read"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "read"
+            ],
             "timeout": 10
           }
         ]
@@ -79,7 +105,26 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "capture"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "capture"
+            ],
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|KillShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "action"
+            ],
             "timeout": 10
           }
         ]
@@ -91,7 +136,11 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "stop"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "stop"
+            ],
             "timeout": 30
           }
         ]
@@ -103,7 +152,11 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "stop"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "stop"
+            ],
             "timeout": 30
           }
         ]
@@ -115,7 +168,11 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rw.py", "hook", "session-end"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rw.py",
+              "hook",
+              "session-end"
+            ],
             "timeout": 10
           }
         ]

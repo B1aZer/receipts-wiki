@@ -12,8 +12,8 @@ import sys
 import time
 from pathlib import Path
 
-from . import (archive, changes, checks, config, frontmatter, gitlog, indexer, related, secrets, state, topics,
-               turns, warm, watch)
+from . import (actions, archive, changes, checks, config, frontmatter, gitlog, indexer, related, secrets,
+               state, topics, turns, warm, watch)
 
 REVISION = re.compile(r"^(HEAD|ORIG_HEAD|FETCH_HEAD|@)([~^]\d*)*$|^[0-9a-f]{7,40}([~^]\d*)*$")
 RESET_MODES = {"--hard", "--soft", "--mixed", "--merge", "--keep"}
@@ -262,6 +262,17 @@ def hook_history(payload):
                     "If the user still wants to rewrite history, tell them they can run the command themselves outside the agent."),
             }})
             return
+
+
+def hook_action(payload):
+    """PostToolUse on any tool that changes something: record the deed, never block, never speak.
+
+    Separate from hook_capture, which only tracks memory writes for the commit. This records every
+    mutating call anywhere, because the question it answers is "what did this turn actually do".
+    """
+    home = config.home()
+    if home.exists():
+        actions.append(home, payload.get("session_id"), payload)
 
 
 def hook_capture(payload):

@@ -10,7 +10,7 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import frontmatter, gitlog, indexer
+from . import actions, frontmatter, gitlog, indexer
 
 HEADING = re.compile(r"^##\s+(?P<ts>\S+)\s+(?P<role>user|assistant)\s+\(line\s+(?P<line>\d+)(?:,\s*turn\s+(?P<turn>[\w.-]+))?\)", re.I)
 TRAILER = re.compile(r"^(?P<key>Session|Turn|Agent|Change):\s*(?P<value>.+)$", re.M)
@@ -133,6 +133,8 @@ def collect(home, since=None, rel=None, area=None, limit=20, rev_range=None):
         if session and session not in cache:
             cache[session] = archive_entries(home, session)
         row["why"] = reason(cache.get(session) or [], row["turn"], row["time"]) if session else None
+        # What the turn did, not only what it said (§3.10). Empty for turns predating the action log.
+        row["did"] = actions.between(home, session, row["turn"]) if session and row["turn"] else []
     return rows
 
 
@@ -154,6 +156,9 @@ def render(rows):
                 lines.append(f"  result:   \"{_one_line(why['result'])}\"")
             if why["how"] == "time":
                 lines.append("  (joined by time: this archive entry predates turn ids)")
+        for act in row.get("did") or []:
+            mark = "  !" if act["outcome"].startswith("ERROR") else "   "
+            lines.append(f"{mark} did:     {act['tool']} {_one_line(act['target'], 90)} -> {act['outcome'][:40]}")
         for action in row["actions"]:
             lines.append(f"  {_one_line(action, 200)}")
         lines.append("")
@@ -166,6 +171,7 @@ def as_json(rows):
         why = row.get("why") or {}
         out.append({"commit": row["commit"], "time": row["time"].isoformat() if row["time"] else None,
                     "subject": row["subject"], "session": row["session"], "turn": row["turn"], "agent": row["agent"],
-                    "paths": row["paths"], "actions": row["actions"], "joined_by": why.get("how"),
+                    "paths": row["paths"], "actions": row["actions"], "did": row.get("did") or [],
+                    "joined_by": why.get("how"),
                     "prompt": why.get("prompt"), "answered": why.get("answered"), "result": why.get("result")})
     return out
