@@ -153,7 +153,7 @@ def _mark_dependents(home, changes, commit):
     Never blocks the commit: the queue is derived state, and a failure to build it must not cost the
     change that was just recorded.
     """
-    events = {"fact.superseded", "fact.retired"}
+    events = {"fact.superseded", "fact.retired", "fact.status"}
     interesting = [c for c in changes if c["event"] in events and indexer.is_note(c["rel"])]
     if not interesting:
         return

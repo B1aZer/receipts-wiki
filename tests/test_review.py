@@ -120,3 +120,50 @@ class ReviewTests(HookTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StatusEventTests(HookTestCase):
+    """A workstream changing state or rank is an event dependents react to (§3.3 + §3.4)."""
+
+    def cursor(self, name, description, body, priority=None, status=None):
+        extra = (f"  priority: {priority}\n" if priority is not None else "")
+        extra += (f"  status: {status}\n" if status else "")
+        return (f"---\nname: {name}\ndescription: {description}\nmetadata:\n"
+                f"  type: cursor\n  area: api\n{extra}---\n\n{body}\n")
+
+    def test_a_rank_change_is_a_status_event(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from rwlib import gitlog
+        old = self.cursor("cursor-a", "d", "b", priority=1)
+        new = self.cursor("cursor-a", "d", "b", priority=2)
+        self.assertEqual(gitlog.derive_event("memory/cursor_a.md", old, new), "fact.status")
+
+    def test_a_rank_change_queues_the_notes_that_reference_it(self):
+        self.write_and_capture("memory/cursor_a.md", self.cursor("cursor-a", "first", "b", priority=1), turn="t1")
+        self.write_and_capture("memory/other.md", note("other", "restates the rank", "cursor-a is second"),
+                               turn="t2")
+        self.write_and_capture("memory/cursor_a.md", self.cursor("cursor-a", "first", "b", priority=2), turn="t3")
+        self.assertEqual([r["note"] for r in review.queue(self.home)], ["memory/other.md"])
+        self.assertEqual(review.queue(self.home)[0]["entries"][0]["event"], "fact.status")
+
+    def test_a_rank_change_does_not_queue_notes_sharing_something_the_cursor_merely_mentions(self):
+        """The edit is frontmatter only; falling back to every name in the note queued 21 notes for one
+        rank change on the live home."""
+        self.write_and_capture("memory/topic.md", note("shared-topic", "a topic", "Body."), turn="t1")
+        self.write_and_capture("memory/cursor_a.md",
+                               self.cursor("cursor-a", "first", "see [[shared-topic]]", priority=1), turn="t2")
+        self.write_and_capture("memory/elsewhere.md", note("elsewhere", "unrelated", "also [[shared-topic]]"),
+                               turn="t3")
+        self.write_and_capture("memory/cursor_a.md",
+                               self.cursor("cursor-a", "first", "see [[shared-topic]]", priority=2), turn="t4")
+        self.assertEqual(review.queue(self.home), [])
+
+    def test_retiring_still_uses_the_wider_scope(self):
+        self.write_and_capture("memory/cursor_a.md", self.cursor("cursor-a", "live", "b"), turn="t1")
+        self.write_and_capture("memory/dependent.md", note("dependent", "leans on it", "per [[cursor-a]]"),
+                               turn="t2")
+        self.write_and_capture("memory/cursor_a.md", self.cursor("cursor-a", "live", "b", status="retired"),
+                               turn="t3")
+        self.assertEqual([r["note"] for r in review.queue(self.home)], ["memory/dependent.md"])

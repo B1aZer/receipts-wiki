@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- A workstream changing state or rank is now an event (`fact.status`), so the review queue reacts to it. Until now §3.4 fired only on supersede and retire, which meant the changes that go stale fastest passed unnoticed: a rank set on one cursor was contradicted by prose in another within a day and nothing reacted, because both edits looked ordinary. Scope is narrowed for these events to the notes that reference the workstream, not everything sharing a name the note happens to mention — on the live home the wide scope queued 21 notes for one rank change where the correct answer was 1.
+- Lint rule `rank-in-prose`: a note stating a rank in words when rank is owned by `metadata.priority`. It distinguishes the two cases, because they need different fixes — a note that owns no priority field is holding a copy of someone else's rank, while the owner restating its own field simply leaves the words behind when the field moves.
+
 - Lint rule `field-duplicated`: a note that sets both `description` and `metadata.description` (or the two `name` keys) to different values. Only the top-level key is read, so the second is invisible and free to drift from the one that counts. Seven notes on the author's home had one. Identical copies are ignored.
 
 - Cursors carry `metadata.priority` and the session-start block orders by it instead of by name, so the workstream that matters is the first one a session reads. Unranked cursors follow the ranked ones, still alphabetically. On the author's home the alphabet had put the top priority fourth of six, and a workstream that ended a week earlier fifth, presented identically to live work — one line of ordering standing between a session and the wrong first move.

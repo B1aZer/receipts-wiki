@@ -110,6 +110,14 @@ def derive_event(rel, old, new):
     new_status = frontmatter.get(new_fm, "status", "metadata.status")
     if new_status == "retired" and old_status != "retired":
         return "fact.retired"
+    # A workstream changing state or rank is an event other notes may depend on, the same way a supersede
+    # is. Without it §3.4 stays silent on exactly the changes that go stale fastest: on 2026-09-30 a rank
+    # set in one cursor was contradicted by prose in another within a day, and nothing reacted because
+    # both edits looked ordinary.
+    old_priority = frontmatter.get(old_fm, "priority", "metadata.priority")
+    new_priority = frontmatter.get(new_fm, "priority", "metadata.priority")
+    if old_status != new_status or old_priority != new_priority:
+        return "fact.status"
     old_verified = frontmatter.get(old_fm, "last_verified", "metadata.last_verified")
     new_verified = frontmatter.get(new_fm, "last_verified", "metadata.last_verified")
     if old_verified != new_verified and LAST_VERIFIED.sub("", old) == LAST_VERIFIED.sub("", new):

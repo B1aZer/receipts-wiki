@@ -12,7 +12,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from . import gitlog, indexer
+from . import frontmatter, gitlog, indexer
 
 RULES = {
     "index-unlisted": "note that no index links, so later sessions will not find it",
@@ -24,12 +24,17 @@ RULES = {
     "doc-unnamed": "document in a folder memory names that no note names (turn check, or the `lint --docs` sweep)",
     "cursor-ended-in-prose": "cursor whose own text says the work ended while its status still says active",
     "field-duplicated": "a note restating its own name or description inside metadata, where nothing reads it",
+    "rank-in-prose": "a note stating a rank in words when rank is owned by metadata.priority",
 }
 
 MAX_NOTE_BYTES = 12000
 # A cursor's description is shown at every session start and in MEMORY.md, so it must stay one line.
 MAX_CURSOR_DESCRIPTION = 250
 WIKILINK = re.compile(r"\[\[([^\]|#]+)")
+# Rank is owned by metadata.priority. Stated in words it is a copy: on another note it contradicts the
+# owner (2026-09-30, one cursor ranked another and disagreed with it a day later), and on the owner
+# itself it simply goes stale the moment the field changes. \b cannot precede "#", hence the lookbehind.
+RANK = re.compile(r"(?<![\w#])(TOP PRIORITY|#\d+ PRIORITY|PRIORITY[: ]+#?\d)", re.I)
 # A cursor states its own state in prose; when that prose says the work ended, the status field should
 # agree, or the session-start block keeps presenting finished work as live.
 ENDED = re.compile(r"\b(CLOSED|REJECTED|RETIRED|ABANDONED|SHIPPED AND DONE|WORK ENDED)\b")
@@ -99,6 +104,16 @@ def note_rules(home, subjects, items=None, skip=()):
             fix = (f"{where} is written by hand, so add one line linking ({item['file']}) there"
                    if where else f"check that metadata.area is set; the generated index for area '{item['area']}' should list it")
             found.append(("index-unlisted", rel, f"{rel} is not linked from any index, so later sessions will not find it: {fix}."))
+        # The body, not the whole file: "priority: 1" in the frontmatter is the field, not a copy of it.
+        rank = RANK.search(item["description"]) or RANK.search(frontmatter.split(item["text"])[1])
+        if rank:
+            owns = item.get("priority") is not None
+            fix = ("its own metadata.priority already says so, and the words stay behind when the field changes"
+                   if owns else
+                   "it owns no metadata.priority, so this is a copy of a rank another note owns")
+            found.append(("rank-in-prose", rel,
+                          f"{rel} says \"{rank.group(0)}\" in words: {fix}. "
+                          "Set or read metadata.priority instead; the session-start block orders by it."))
         for key in ("name", "description"):
             inner = item["frontmatter"].get(f"metadata.{key}")
             if inner and str(inner).strip() != str(item[key]).strip():

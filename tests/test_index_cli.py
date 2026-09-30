@@ -433,3 +433,39 @@ class DuplicateFieldRuleTests(HookTestCase):
     def test_ignores_a_note_without_the_duplicate(self):
         self.write_and_capture("memory/a.md", note("a-note", "only one", "Body."))
         self.assertNotIn("field-duplicated", self.lint())
+
+
+class RankInProseRuleTests(HookTestCase):
+    """rank-in-prose: rank stated in words when metadata.priority owns it."""
+
+    def cursor(self, name, description, priority=None):
+        extra = f"  priority: {priority}\n" if priority is not None else ""
+        return (f"---\nname: {name}\ndescription: {description}\nmetadata:\n"
+                f"  type: cursor\n  area: api\n{extra}---\n\nBody.\n")
+
+    def lint(self):
+        out = subprocess.run(["python3", str(RW), "lint"], capture_output=True, text=True,
+                             env=self.env(), check=False)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout
+
+    def test_flags_the_owner_restating_its_own_field(self):
+        self.write_and_capture("memory/cursor_a.md", self.cursor("cursor-a", "TOP PRIORITY: ship it", priority=1))
+        out = self.lint()
+        self.assertIn("rank-in-prose", out)
+        self.assertIn("its own metadata.priority already says so", out)
+
+    def test_flags_a_note_copying_a_rank_it_does_not_own(self):
+        self.write_and_capture("memory/cursor_b.md", self.cursor("cursor-b", "#2 PRIORITY after the other one"))
+        out = self.lint()
+        self.assertIn("rank-in-prose", out)
+        self.assertIn("owns no metadata.priority", out)
+
+    def test_matches_a_hash_rank_at_the_start_of_a_description(self):
+        """\\b cannot precede '#', so the first version of this rule missed every '#2 PRIORITY' line."""
+        self.write_and_capture("memory/cursor_c.md", self.cursor("cursor-c", "#3 PRIORITY here", priority=3))
+        self.assertIn("rank-in-prose", self.lint())
+
+    def test_says_nothing_when_rank_is_only_a_field(self):
+        self.write_and_capture("memory/cursor_d.md", self.cursor("cursor-d", "ship the thing", priority=1))
+        self.assertNotIn("rank-in-prose", self.lint())

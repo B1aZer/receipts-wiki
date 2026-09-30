@@ -247,7 +247,12 @@ def mark(home, rel, text, event, commit, event_time=None, changed=None, old=None
     # `Supersedes` line rarely repeats the note's own name, so relying on the added lines alone finds
     # nothing at all for the commonest shape of edit.
     names = [(gitlog.slug(Path(rel).name[:-3]), "link")]
-    names += [pair for pair in changed_things(old, text) if pair[0] != names[0][0]]
+    # A state or rank change makes stale exactly the notes that REFERENCE this workstream — not the
+    # notes that happen to share something it mentions. The edit is frontmatter only, so the added
+    # lines carry no names and the general path falls back to every name in the note: on the live home
+    # a single rank change then queued 21 notes, most of them matched on a link in the cursor's body.
+    if event != "fact.status":
+        names += [pair for pair in changed_things(old, text) if pair[0] != names[0][0]]
     hits = candidates(home, rel, text, event_time, changed=changed, names=names)
     if not hits:
         return 0
