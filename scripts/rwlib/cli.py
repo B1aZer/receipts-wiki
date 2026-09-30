@@ -241,10 +241,10 @@ def review(home, as_json=False, note=None):
 
 def watch(home, session=None, advance=False):
     """What a session would be told about memory another session changed. A dry run unless --advance."""
-    sessions = sorted(state.all_sessions(), key=lambda d: d.get("updated") or "", reverse=True)
+    sessions = sorted(state.all_sessions(home), key=lambda d: d.get("updated") or "", reverse=True)
     if not sessions:
         print("no session state recorded yet")
-        return 1
+        return 0
     if session:
         chosen = next((d for d in sessions if d["session"].startswith(session)), None)
         if not chosen:
@@ -338,7 +338,7 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False, docs=Fa
         health = state.load_health()
         if health.get("detail"):
             problems.append(f"the last catch-up commit failed at {health.get('at')} (failing since {health.get('since')}): {health['detail']}")
-        for data in state.all_sessions():
+        for data in state.all_sessions(home):
             failure = data.get("commit_failure")
             if failure and data.get("pending"):
                 problems.append(f"session {data['session']} has {len(data['pending'])} uncommitted memory write(s), "

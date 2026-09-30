@@ -30,9 +30,11 @@ claude --plugin-dir .                     # try your copy without installing it
 
 ## Evals
 
-`evals/` holds paired runs against real Claude Code sessions: `update_correctness` (does a corrected fact win?) and `drift` (does memory stay findable and current across sessions and directories?). They cost money to run and need `claude` on your PATH:
+`evals/` holds paired runs against real Claude Code sessions: `update_correctness` (does a corrected fact win?), `drift` (does memory stay findable and current across sessions and directories?) and `mechanics` (do the hooks and commands actually produce their artifacts in a real session?). They cost money to run and need `claude` on your PATH — except the mechanics fast lane, which runs no model:
 
 ```bash
+python3 evals/mechanics/run.py --lane fast   # no model, no cost
+python3 evals/mechanics/run.py --lane live
 python3 evals/drift/run.py --dry-run
 python3 evals/drift/run.py --scenario cursor-follow --arm receipts-wiki
 ```

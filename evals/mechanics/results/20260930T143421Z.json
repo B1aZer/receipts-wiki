@@ -1,0 +1,55 @@
+{
+  "fast": [
+    {
+      "check": "build-index",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "find",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "recall",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "lint",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "lint-docs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "history",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "changes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "review",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "watch",
+      "ok": false,
+      "detail": "exit 1: no session state recorded yet"
+    },
+    {
+      "check": "resume",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "live": null
+}

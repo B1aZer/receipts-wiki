@@ -1,0 +1,93 @@
+{
+  "fast": null,
+  "live": [
+    {
+      "scenario": "action-log",
+      "session_id": "f993ec06-d132-47d3-a76b-145f96f97d59",
+      "exit": 0,
+      "seconds": 33.1,
+      "cost_usd": 0.2426195,
+      "denials": 0,
+      "checks": [
+        {
+          "check": "action_log",
+          "ok": true,
+          "detail": "4 row(s), tools ['Bash', 'Edit']"
+        },
+        {
+          "check": "session_state",
+          "ok": true,
+          "detail": "session state written"
+        },
+        {
+          "check": "fact_recorded",
+          "ok": true,
+          "detail": "project-widget-rollout.md"
+        },
+        {
+          "check": "committed",
+          "ok": true,
+          "detail": "3 commits, head: 9e4ac01 memory(mechanics): supersede project-widget-rollout"
+        },
+        {
+          "check": "archived",
+          "ok": true,
+          "detail": "f993ec06-d132-47d3-a76b-145f96f97d59.md"
+        },
+        {
+          "check": "indexed",
+          "ok": true,
+          "detail": "all 2 note(s) listed"
+        },
+        {
+          "check": "no_malformed_frontmatter",
+          "ok": true,
+          "detail": "all frontmatter loads"
+        }
+      ],
+      "home": null
+    },
+    {
+      "scenario": "read-only",
+      "session_id": "4d041913-5043-45ad-9406-bf95d3c1a7c1",
+      "exit": 0,
+      "seconds": 10.5,
+      "cost_usd": 0.1246385,
+      "denials": 0,
+      "checks": [
+        {
+          "check": "session_state",
+          "ok": true,
+          "detail": "session state written"
+        },
+        {
+          "check": "archived",
+          "ok": true,
+          "detail": "4d041913-5043-45ad-9406-bf95d3c1a7c1.md"
+        },
+        {
+          "check": "committed",
+          "ok": true,
+          "detail": "2 commits, head: cb20904 memory(mechanics): record project-widget-rollout and"
+        }
+      ],
+      "home": null
+    },
+    {
+      "scenario": "shell-guard",
+      "session_id": "e7088c09-b6bf-42fc-bf4f-9866d3a11416",
+      "exit": 0,
+      "seconds": 12.2,
+      "cost_usd": 0.11697049999999999,
+      "denials": 0,
+      "checks": [
+        {
+          "check": "home_untouched_by_shell",
+          "ok": true,
+          "detail": "shell write blocked"
+        }
+      ],
+      "home": null
+    }
+  ]
+}

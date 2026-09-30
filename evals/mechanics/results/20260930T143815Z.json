@@ -1,0 +1,51 @@
+{
+  "fast": null,
+  "live": [
+    {
+      "scenario": "action-log",
+      "session_id": "a00534f6-1cc5-46b9-a357-13be51ba8ac5",
+      "exit": 0,
+      "seconds": 25.6,
+      "cost_usd": 0.20607199999999998,
+      "denials": 0,
+      "checks": [
+        {
+          "check": "action_log",
+          "ok": true,
+          "detail": "4 row(s), tools ['Bash', 'Write', 'tool']"
+        },
+        {
+          "check": "session_state",
+          "ok": true,
+          "detail": "session state written"
+        },
+        {
+          "check": "note_written",
+          "ok": false,
+          "detail": "the session wrote no new note"
+        },
+        {
+          "check": "committed",
+          "ok": true,
+          "detail": "3 commits, head: 569fafd memory(mechanics): supersede project-widget-rollout"
+        },
+        {
+          "check": "archived",
+          "ok": true,
+          "detail": "a00534f6-1cc5-46b9-a357-13be51ba8ac5.md"
+        },
+        {
+          "check": "indexed",
+          "ok": false,
+          "detail": "no new note to look for"
+        },
+        {
+          "check": "no_malformed_frontmatter",
+          "ok": true,
+          "detail": "all frontmatter loads"
+        }
+      ],
+      "home": null
+    }
+  ]
+}

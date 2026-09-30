@@ -61,7 +61,7 @@ def credit_shell_writes(home, session, data, turn):
             continue
     if not recent:
         return []
-    if any(turn_running(other) for other in state.all_sessions() if other.get("session") != session):
+    if any(turn_running(other) for other in state.all_sessions(home) if other.get("session") != session):
         return []
     dirty, others = set(gitlog.dirty_paths(home)), claims(exclude=session)
     credited = []
@@ -76,7 +76,7 @@ def stale_uncommitted(home, minutes=STALE_UNCOMMITTED_MINUTES):
     """Memory files changed on disk more than `minutes` ago and still not committed, excluding files that
     a session active within the last hour is still working on."""
     active = set()
-    for data in state.all_sessions():
+    for data in state.all_sessions(home):
         if state.seconds_since(data.get("updated")) < config.STALE_JOURNAL_MINUTES * 60:
             active.update(data.get("pending") or {})
     stale = []
@@ -210,7 +210,7 @@ def sweep(home, current_session=None):
         if dirty:
             state.save_health(IN_PROGRESS, dirty)
         return
-    for data in state.all_sessions():
+    for data in state.all_sessions(home):
         session = data.get("session")
         if session == current_session:
             continue
