@@ -262,6 +262,28 @@ class ShellWriteTests(HookTestCase):
         from rwlib import gitlog
         self.assertIn("plans/plan-thing.md", gitlog.dirty_paths(self.home))
 
+    def test_a_session_running_an_older_install_is_told_to_restart(self):
+        """A session keeps the code it started with. One several releases behind rewrote 29 of 33
+        generated indexes on a single turn, and nothing announced it."""
+        import json, shutil, sys, subprocess
+        sys.path.insert(0, str(RW.parent))
+        from rwlib import config
+        cache = self.tmp / "cache" / "receipts-wiki"
+        for v in ("0.3.0-dev.26", "0.3.0-dev.27"):
+            d = cache / v
+            (d / ".claude-plugin").mkdir(parents=True)
+            (d / ".claude-plugin" / "plugin.json").write_text(json.dumps({"version": v}))
+        probe = (
+            "import sys; sys.path.insert(0, r'%s');"
+            "import rwlib.config as c; from pathlib import Path;"
+            "c.ROOT = Path(r'%s');"
+            "print(c.newer_installed())" % (RW.parent, cache / "0.3.0-dev.26")
+        )
+        out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
+        self.assertEqual(out.stdout.strip(), "0.3.0-dev.27")
+        self.assertGreater(config._version_key("0.3.0-dev.26"), config._version_key("0.3.0-dev.9"))
+        self.assertGreater(config._version_key("0.3.0"), config._version_key("0.3.0-dev.26"))
+
     def test_file_changed_before_the_turn_is_left_to_catch_up(self):
         path = self.home / "memory" / "old.md"
         path.write_text(note("old-note", "changed before this turn", "Body."))

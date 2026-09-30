@@ -57,6 +57,48 @@ def claude_settings_path():
     return Path(raw).expanduser()
 
 
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def version():
+    """This copy's version string, or "" when it cannot be read."""
+    try:
+        import json
+        return str(json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")).get("version") or "")
+    except (OSError, ValueError):
+        return ""
+
+
+def _version_key(text):
+    """Sortable key for 0.3.0-dev.26: release numbers first, then the pre-release number.
+
+    A release sorts above its own pre-releases, so 0.3.0 beats 0.3.0-dev.26.
+    """
+    head, _, pre = text.partition("-")
+    nums = [int(n) if n.isdigit() else 0 for n in head.split(".")]
+    pre_num = int("".join(c for c in pre if c.isdigit()) or 0) if pre else None
+    return (nums, 1 if pre_num is None else 0, pre_num or 0)
+
+
+def newer_installed():
+    """A newer version of this plugin installed beside this one, or "".
+
+    Installs live at <cache>/<marketplace>/<plugin>/<version>/, so the siblings of this copy's
+    directory are the other installed versions. A long-running session keeps the code it started
+    with, so it can silently act on rules and generators several releases old -- which on 2026-09-30
+    rewrote 29 of 33 generated indexes from a session that had not restarted.
+    """
+    mine = version()
+    if not mine or ROOT.name != mine:
+        return ""   # not running from a versioned install directory; nothing to compare against
+    try:
+        siblings = [d.name for d in ROOT.parent.iterdir() if d.is_dir() and d.name != mine]
+    except OSError:
+        return ""
+    newer = [name for name in siblings if _version_key(name) > _version_key(mine)]
+    return max(newer, key=_version_key) if newer else ""
+
+
 # What the memory repository versions. `memory/` and `AGENTS.md` are the notes and the rules; `plans/`
 # holds long-form maintainer documents that are private, durable and too large to be notes — a plan is
 # not a fact, so it gets no frontmatter, no index line and no 12 KB budget, but it does get history.

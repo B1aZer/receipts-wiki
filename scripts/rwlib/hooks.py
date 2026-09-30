@@ -497,6 +497,16 @@ def hook_session_start(payload):
             text = cut + f"\n\n[receipts-wiki loaded only the first {config.AGENTS_BUDGET_BYTES} of {len(raw)} bytes of AGENTS.md; shorten it.]"
         parts.append(f"Rules from {agents}, loaded by receipts-wiki:\n\n{text}")
 
+    # A session keeps the code it started with. On 2026-09-30 a session several releases behind
+    # rewrote 29 of 33 generated indexes on one turn, and an earlier one filed notes under a type
+    # scheme that had already been replaced. Neither announced itself; both looked like ordinary work.
+    newer = config.newer_installed()
+    if newer:
+        notices.append(f"receipts-wiki: this session is running {config.version()} but {newer} is installed. "
+                       "A session keeps the code it started with, so its rules, generators and gate are the older ones "
+                       "— regenerating indexes from here can undo work a newer session did. Restart to pick up the new version, "
+                       "or avoid `build-index` and memory-wide rewrites until you do.")
+
     if not home.exists():
         parts.append(f"receipts-wiki is installed but there is no memory home at {home}. If the user wants shared memory, suggest the receipts-wiki setup skill.")
     else:
