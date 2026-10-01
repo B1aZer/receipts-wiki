@@ -29,6 +29,7 @@ RULES = {
     "link-wrong-form": "[[link]] used for a note's filename or for a skill, where a path link belongs",
     "decision-without-alternative": "a decision note naming no rejected option, which makes it a conclusion in the wrong type",
     "decision-without-evidence": "a decision note with no pointer to where the option was ruled out",
+    "done-when-vague": "a completion criterion the agent could satisfy by writing, rather than one the world decides",
 }
 
 MAX_NOTE_BYTES = 12000
@@ -72,6 +73,23 @@ FENCE = re.compile(r"```.*?```", re.S)
 CODE_SPAN = re.compile(r"`[^`\n]*`")
 # What a decision note must carry. "Rejected" is the house word; the alternatives are the forms a
 # session actually writes when it means the same thing.
+# A criterion is only worth stating if the agent cannot make it true by writing text. These are the
+# referents the world decides: an issue or PR number, a URL, a command or identifier in backticks, a
+# path, a threshold, a count, a date. "Done when the PR is merged" passes; "done when the code is
+# clean" does not, whoever wrote it.
+EXTERNAL = re.compile(r"(#\d+|https?://|`[^`]+`|\b[\w./-]+\.(?:py|md|json|ts|tsv|jsonl|yml|yaml|sh|html)\b"
+                      r"|\b\d+(?:\.\d+)?\s*(?:%|x\b)|[<>=]\s*\d|\b\d{4}-\d{2}-\d{2}\b"
+                      r"|\bexit(?:s)?\s+\d|\breturns\s+\d{3}\b"
+                      # ...or an EVENT. The line that holds, after widening this twice: an event
+                      # either happened or it did not, while a judgement ("clean", "right", "good")
+                      # is satisfiable by assertion. No script can grep an inbox, but the agent
+                      # still cannot make Supabase reply by writing text. The test is "could I make
+                      # this true by writing?", not "can a tool verify it?". Widening past events
+                      # into judgements would empty the rule, so treat further additions as suspect.
+                      r"|\b(merged|replied|repl(?:y|ies) received|response received|received|published|"
+                      r"approved|issued|invited|offered|accepted|rejected|signed|paid|granted|landed|"
+                      r"submitted|sent|posted|deployed|delivered|filed|opened|closed|shipped|scheduled)\b)", re.I)
+
 REJECTED = re.compile(r"\b(rejected|ruled out|not chosen|discarded|declined|instead of|considered and)\b", re.I)
 # An origin the reader can open: a session/turn id, a commit sha, a file path, an arXiv id, a URL,
 # a measured number, or an absolute date.
@@ -133,7 +151,7 @@ def note_rules(home, subjects, items=None, skip=()):
         # The body, not the whole file: "priority: 1" in the frontmatter is the field, not a copy of it.
         for problem in frontmatter.problems(item["text"]):
             found.append(("frontmatter-lost", rel, f"{rel}: {problem}"))
-        rank = RANK.search(item["description"]) or RANK.search(frontmatter.split(item["text"])[1])
+        rank = RANK.search(item["description"]) or RANK.search(prose_only(frontmatter.split(item["text"])[1]))
         if rank:
             owns = item.get("priority") is not None
             fix = ("its own metadata.priority already says so, and the words stay behind when the field changes"
@@ -186,6 +204,15 @@ def note_rules(home, subjects, items=None, skip=()):
         # is checked rather than documented. The pointer matters for a second reason: LLM-written design
         # rationale scores ~0.27 precision with 1.6-3.2% of arguments actively misleading (arXiv
         # 2504.20781), so a reason with no origin is not trustworthy enough to act on later.
+        # Who writes a criterion matters less than whether the world can settle it: an agent that
+        # both states and judges its own completion is self-reporting. Approval stays cheap only
+        # while every criterion is one line and externally checkable.
+        for criterion in item.get("done_when") or []:
+            if not EXTERNAL.search(criterion):
+                found.append(("done-when-vague", rel,
+                              f"{rel} has a criterion nothing outside can settle: {criterion!r}. Name something the "
+                              "world decides — a PR or issue number, a URL, a command in backticks, a file, a "
+                              "threshold or a date."))
         if item["type"] == "decision":
             body = prose_only(item["text"])
             if not REJECTED.search(body):

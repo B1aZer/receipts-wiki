@@ -641,6 +641,24 @@ class TurnCheckTests(HookTestCase):
                                turn="t2")
         self.assertEqual(self.notices("t3"), "")
 
+    def test_a_completion_criterion_must_be_one_the_world_can_settle(self):
+        """An agent that states and judges its own completion is self-reporting. Externality is what
+        makes the user's approval a glance rather than an audit."""
+        body = "Where it stands. See [[quotes-cache-ttl]]."
+        head = ('---\ndescription: "the api work"\nmetadata:\n  area: api\n  done_when:\n    - %s\n---\n\n')
+        self.write_and_capture("memory/cursor_api.md", head % "the code is clean" + body)
+        self.assertIn("nothing outside can settle", self.notices("t2"))
+        self.write_and_capture("memory/cursor_api.md", head % "PR #12 merged" + body, turn="t2")
+        self.assertNotIn("nothing outside can settle", self.notices("t3"))
+
+    def test_a_rank_inside_a_code_example_is_not_a_rank_in_prose(self):
+        """A note documenting frontmatter shows `priority: 1` in a fenced block. The link rules
+        already blank code with prose_only; this rule read the raw body and flagged the example."""
+        body = ("How the field works. See [[quotes-cache-ttl]].\n\n```yaml\nmetadata:\n  priority: 1\n```\n")
+        self.write_and_capture("memory/reference_fields.md",
+                               note("reference-fields", "how metadata.priority works", body))
+        self.assertNotIn("in words", self.notices("t2"))
+
     def test_cursor_left_behind_by_a_linked_note(self):
         self.write_and_capture("memory/cursor_api.md", cursor("cursor-api", "PR not opened; NEXT = open it", "See [[quotes-cache-ttl]]."))
         self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "PR #12 opened."), turn="t2")

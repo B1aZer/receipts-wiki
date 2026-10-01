@@ -87,6 +87,7 @@ def notes(home, include=None):
             "status": str(frontmatter.get(fm, "status", "metadata.status") or "active"),
             "type": note_type(path.name),
             "priority": _priority(frontmatter.get(fm, "metadata.priority", "priority")),
+            "done_when": _criteria(frontmatter.get(fm, "metadata.done_when", "done_when")),
             "frontmatter": fm,
             "text": text,
         })
@@ -116,6 +117,13 @@ def note_type(filename):
     """
     prefix = filename.split("_")[0] if "_" in filename else ""
     return prefix if prefix in TYPES else ""
+
+
+def _criteria(value):
+    """What would make this workstream finished, as a list. A single string counts as one criterion."""
+    if not value:
+        return []
+    return [str(v).strip() for v in (value if isinstance(value, list) else [value]) if str(v).strip()]
 
 
 def _priority(value):
@@ -150,7 +158,12 @@ def render_cursors(cursors):
     if not cursors:
         return []
     lines = ["## Where things stand", ""]
-    lines.extend(note_line(item) for item in sorted(cursors, key=by_priority))
+    for item in sorted(cursors, key=by_priority):
+        lines.append(note_line(item))
+        # The criterion travels with the position: a session that knows where the work stands but
+        # not what would finish it has one safe move, which is to ask.
+        for criterion in item.get("done_when") or []:
+            lines.append(f"  - done when: {criterion}")
     lines.append("")
     return lines
 
