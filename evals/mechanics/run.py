@@ -59,7 +59,6 @@ FAST_COMMANDS = [
     ("lint-docs", ["lint", "--docs"]),
     ("history", ["history", "project-widget-rollout"]),
     ("changes", ["changes"]),
-    ("review", ["review"]),
     ("watch", ["watch"]),
     ("resume", ["resume"]),
 ]

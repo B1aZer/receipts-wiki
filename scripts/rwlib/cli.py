@@ -5,7 +5,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import changes as changes_log, checks, config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, review as review_mod, state, topics, turns, watch as watch_mod
+from . import changes as changes_log, checks, config, frontmatter, gitlog, indexer, resume as resume_mod, secrets, state, topics, turns, watch as watch_mod
 
 HOOK_MARK = "receipts-wiki pre-commit hook"
 HOOK_SCRIPT = """#!/bin/sh
@@ -220,22 +220,6 @@ def changes(home, since=None, note=None, area=None, limit=20, as_json=False):
         print(json.dumps(changes_log.as_json(rows), indent=2, ensure_ascii=False))
     else:
         print(changes_log.render(rows), end="")
-    return 0
-
-
-def review(home, as_json=False, note=None):
-    """Notes waiting to be checked against a change they depend on."""
-    rows = review_mod.queue(home)
-    if note:
-        rel = resolve_note(home, note)
-        if not rel:
-            print(f"no note matches {note!r}")
-            return 1
-        rows = [row for row in rows if row["note"] == rel]
-    if as_json:
-        print(json.dumps(rows, indent=2, ensure_ascii=False))
-    else:
-        print(review_mod.render(rows), end="")
     return 0
 
 
