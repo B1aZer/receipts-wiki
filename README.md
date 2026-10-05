@@ -4,7 +4,7 @@ Git-versioned memory for AI agents, where every remembered fact carries its rece
 
 receipts-wiki builds on Claude Code's built-in auto memory and adds what it lacks: one memory home shared by every agent and directory, a git commit for each agent turn that changed memory, naming the session and the reasons, checks that stop stale or secret-bearing writes, and an archive of past conversations that is searched only when you ask. It extends Andrej Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) idea file from knowledge you collect to the knowledge an agent produces while it works. Unofficial, and not affiliated with Karpathy.
 
-Status: 0.3.0, released 2026-10-05, in daily use by its author since 2026-09-13. First eval results are under [Results so far](#results-so-far).
+Status: 0.4.0, released 2026-10-05, in daily use by its author since 2026-09-13. First eval results are under [Results so far](#results-so-far).
 
 ## The problem
 

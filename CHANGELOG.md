@@ -2,11 +2,11 @@
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [0.4.0] - unreleased
+## [0.4.0] - 2026-10-05
 
 ### Added
 
-- **The review queue is removed** (`rwlib/review.py`, `rw.py review`, the commit-time marking, `.state/review.json`, 15 tests). Superseding or retiring a fact queued the notes that depended on it, and an agent was meant to work through the list. Measured on the author's home after six days of live use: **the command had been run by two sessions — the one that built it, and the one that deleted it.** No memory commit anywhere cites the queue; no note was ever corrected because of it. What it had instead was 11 standing marks, 7 of them five days old, all from one `fact.status` event on a cursor fanning out to notes that merely mentioned that cursor — a local stack recipe, a Redis-hang finding, a lesson that cites Langfuse only as its example. About one of the seven was a real dependent, consistent with the 24% precision the 2026-09-28 measurement had already found.
+- **The review queue is removed** (`rwlib/review.py`, `rw.py review`, the commit-time marking, `.state/review.json`, 15 tests). Superseding or retiring a fact queued the notes that depended on it, and an agent was meant to work through the list. Measured on the author's home after six days of live use: **the command had been run by two sessions — the one that built it, and the one that deleted it.** No memory commit anywhere cites the queue; no note was ever corrected because of it. What it had instead was 11 standing marks, 7 of them five days old, all from one `fact.status` event on a cursor fanning out to notes that merely mentioned that cursor — a local-stack recipe, a bug finding, a lesson citing that workstream only as its example. About one of the seven was a real dependent, consistent with the 24% precision the 2026-09-28 measurement had already found.
 
   The precision was fixable and that was not the problem. **A queue is a pull mechanism, and nothing here pulls.** The two mechanisms in this plugin with evidence behind them both push into the session: the turn-end checks (the stale-cursor check fired at 08:15 on 2026-09-17 and the session rewrote its cursor nine minutes later) and the per-prompt notice of what another session changed. A reading list waiting in a file asks the agent to know it is missing something, which is the failure this project cites against search tools in the first place. Shortening the list would have produced a shorter list nobody reads.
 
