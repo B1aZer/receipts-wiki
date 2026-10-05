@@ -1,0 +1,105 @@
+{
+ "version": 2,
+ "notes": "Kept as the record of a removed feature. These are the two cross-directory scenarios of scenarios.json, identical except that each seeded index declares read_if, an index field that said when the index was worth opening. Run on 2026-10-05 against the same scenarios without it: 3/3 file checks and 6/6 answers in both arms, $0.75 against $0.82 (summaries 20261005T145559Z and 20261005T145716Z). read_if was removed on that evidence, so nothing reads these conditions any more; the file remains so the summaries that cite it are not dangling. A condition names its area's subject only \u2014 never a string from an expected answer \u2014 so what was measured was whether a session opens the right index, not whether it was handed the answer.",
+ "scenarios": [
+  {
+   "id": "cross-dir-duplicate",
+   "steps": [
+    {
+     "cwd": "billing-service",
+     "prompt": "Remember this for future sessions: the billing export job runs daily at 02:00 UTC and writes to the S3 bucket acme-exports. Set on 2026-09-01."
+    },
+    {
+     "cwd": "infra-tools",
+     "prompt": "For memory: the billing export job now runs at 03:00 UTC. We moved it on 2026-09-17 because it overlapped with the 02:00 database backup."
+    }
+   ],
+   "questions": [
+    {
+     "kind": "current",
+     "q": "At what time does the billing export job run?",
+     "expect_any": [
+      "03:00",
+      "3:00",
+      "3 am",
+      "3am"
+     ]
+    },
+    {
+     "kind": "retained",
+     "q": "Which S3 bucket does the billing export job write to?",
+     "expect_any": [
+      "acme-exports"
+     ]
+    },
+    {
+     "kind": "history",
+     "q": "When did the billing export job run before, and why was it moved?",
+     "expect_all": [
+      "02:00",
+      "backup"
+     ]
+    }
+   ],
+   "checks": [
+    {
+     "kind": "one_note",
+     "text": "billing export"
+    },
+    {
+     "kind": "mentioned",
+     "text": "03:00"
+    },
+    {
+     "kind": "stale_absent",
+     "texts": [
+      "runs daily at 02:00",
+      "runs at 02:00"
+     ]
+    }
+   ],
+   "seed": {
+    "MEMORY.md": "# Memory map\n\nOne index per area; open the one you need.\n\n- ops (service settings): [index-ops](index-ops.md)\n",
+    "index-ops.md": "---\nread_if: the task touches a service setting such as a scheduled job, a bucket or a retention window\n---\n\n# ops index\n\n{filler_index}",
+    "{filler}": 40
+   }
+  },
+  {
+   "id": "find-elsewhere",
+   "seed": {
+    "MEMORY.md": "# Memory map\n\nOne index per area.\n\n- ops: [index-ops](index-ops.md)\n- general: [index-general](index-general.md)\n",
+    "index-ops.md": "---\nread_if: the task touches a service setting such as a scheduled job, a bucket or a retention window\n---\n\n# ops index\n\n{filler_index}",
+    "index-general.md": "---\nread_if: the task touches ledger ingestion\n---\n\n# general index\n\n- [ledger-ingest-pr](project_ledger_ingest.md): Ledger ingestion consumer fix, PR #742\n- [cursor-ledger](cursor_ledger.md): where the Ledger ingestion work stands\n",
+    "project_ledger_ingest.md": "---\nname: ledger-ingest-pr\ndescription: Ledger ingestion consumer fix, PR #742\nmetadata:\n  type: project\n  area: general\n---\n\nThe Ledger ingestion consumer crashed on events whose group key was not a string. Fix opened as PR #742 on 2026-09-12; CI green. Receipts: pr:742.\n",
+    "cursor_ledger.md": "---\nname: cursor-ledger\ndescription: fix PR open, no reviewer yet; NEXT = ask Dana on the ingestion team to review\nmetadata:\n  type: cursor\n  area: general\n---\n\nWhere the Ledger ingestion work stands (2026-09-16): PR #742 open, no reviewer. Next: ask Dana on the ingestion team to review. Evidence: [[ledger-ingest-pr]].\n",
+    "{filler}": 40
+   },
+   "steps": [],
+   "questions": [
+    {
+     "kind": "current",
+     "q": "What is the pull request number for the Ledger ingestion consumer fix?",
+     "expect_any": [
+      "742"
+     ]
+    },
+    {
+     "kind": "current",
+     "q": "Who should be asked next to review the Ledger ingestion fix?",
+     "expect_any": [
+      "dana"
+     ]
+    },
+    {
+     "kind": "current",
+     "q": "Why did the Ledger ingestion consumer crash?",
+     "expect_any": [
+      "group key"
+     ]
+    }
+   ],
+   "checks": [],
+   "notes": "The cursor's description is shown at session start by receipts-wiki, so the PR number and the crash cause are kept out of it: those answers need the fact note."
+  }
+ ]
+}

@@ -598,3 +598,25 @@ class WrappedValueTests(HookTestCase):
 
     def test_a_dash_list_is_not_mistaken_for_a_continuation(self):
         self.assertEqual(self.problems("---\nname: a\nmetadata:\n  receipts:\n    - one\n    - two\n---\nbody"), [])
+
+class GeneratedMarkTests(HookTestCase):
+    """The generated mark is found below an index's frontmatter, not within the first 400 bytes."""
+
+    def test_frontmatter_does_not_hide_the_mark(self):
+        import sys
+        from pathlib import Path as _Path
+        sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "scripts"))
+        from rwlib import indexer
+
+        path = self.home / "memory" / "index-api.md"
+        body = f"# api index\n\n{indexer.GENERATED_MARK} Edit the notes, not this file.\n\n- [one](project_one.md): a fact\n"
+        path.write_text(body)
+        self.assertTrue(indexer.is_generated_index(self.home, "memory/index-api.md"))
+
+        # frontmatter long enough to push the mark past the old 400-byte window
+        padding = "\n".join(f"  note_{i}: {'x' * 40}" for i in range(12))
+        path.write_text(f"---\nread_if: something\nmetadata:\n{padding}\n---\n\n" + body)
+        self.assertGreater(path.read_text().index(indexer.GENERATED_MARK), 400)
+        self.assertTrue(indexer.is_generated_index(self.home, "memory/index-api.md"),
+                        "an index with long frontmatter stopped being recognised as generated, so it would "
+                        "never be regenerated again")

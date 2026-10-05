@@ -46,40 +46,6 @@ def _tool_input(payload):
     return value if isinstance(value, dict) else {}
 
 
-def _index_list_untouched(path, tool_input):
-    """True when a write to a generated index leaves its generated list exactly as it is.
-
-    An index's list comes from note frontmatter and nobody should hand-edit it. Its own frontmatter is
-    the opposite: `read_if` is authored, and the generator carries it over on every rebuild. So the gate
-    allows a change confined to the frontmatter and refuses anything that moves a line of the list.
-    """
-    try:
-        current = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return False
-    if "content" in tool_input:
-        after = tool_input.get("content") or ""
-    elif "old_string" in tool_input:
-        old, new = tool_input.get("old_string") or "", tool_input.get("new_string") or ""
-        if old not in current:
-            return False
-        after = current.replace(old, new, 1)
-    elif isinstance(tool_input.get("edits"), list):
-        after = current
-        for edit in tool_input["edits"]:
-            if not isinstance(edit, dict):
-                return False
-            old, new = str(edit.get("old_string", "")), str(edit.get("new_string", ""))
-            if old not in after:
-                return False
-            after = after.replace(old, new, 1)
-    else:
-        return False
-    _, before_body = frontmatter.split(current)
-    _, after_body = frontmatter.split(after)
-    return after_body == before_body and after_body.strip() != ""
-
-
 def _proposed_text(tool_input):
     """Full text the tool is about to write (Write) or insert (Edit, MultiEdit)."""
     if "content" in tool_input:
@@ -126,10 +92,8 @@ def hook_gate(payload):
     added = _added_lines(path, proposed)
 
     reasons = []
-    if (indexer.is_index_file(rel) and (not path.exists() or indexer.is_generated_index(config.home(), rel))
-            and not _index_list_untouched(path, tool_input)):
-        reasons.append("an index's list is generated from note frontmatter; change the note's area, name or "
-                       "description instead. Its own frontmatter is yours to edit — that is where read_if lives")
+    if indexer.is_index_file(rel) and (not path.exists() or indexer.is_generated_index(config.home(), rel)):
+        reasons.append("index files are generated from note frontmatter; change the note's area, name or description instead")
     secret = secrets.find_secret(proposed)
     if secret:
         reasons.append(f"it contains a secret value ({secret}); store the secret's name or location, never its value")
@@ -543,39 +507,6 @@ def _area_block(home, cwd):
             f"Open only the notes the task needs.\n\n{text.rstrip()}{note}")
 
 
-ELSEWHERE_CHARS = 800
-
-
-def _elsewhere_block(home, loaded):
-    """The indexes for other areas that say when they are worth opening.
-
-    The working directory picks one index, which is a hint and not an answer: on 2026-09-22 three of
-    four sessions working one workstream had started in a directory whose index described someone
-    else's work, and `find` only helps a session that already suspects it is missing something. An
-    index may declare `read_if` in its frontmatter; those conditions are listed here, so a session can
-    open the right index without knowing it exists. Opt-in by design — an area with no condition does
-    not appear, and the block is absent until someone writes one.
-    """
-    try:
-        rows = indexer.area_conditions(home)
-    except OSError:
-        return ""
-    name = loaded.name if loaded else None
-    rows = [(area, condition) for area, condition in rows if f"index-{area}.md" != name]
-    if not rows:
-        return ""
-    lines, used = [], 0
-    for area, condition in rows:
-        line = f"- memory/index-{area}.md — read if {condition}"
-        if used + len(line) > ELSEWHERE_CHARS:
-            lines.append(f"[{len(rows) - len(lines)} more index condition(s) not shown; see memory/MEMORY.md.]")
-            break
-        lines.append(line)
-        used += len(line) + 1
-    return ("Memory indexes for other areas, with the condition each one states. Work crosses directories, "
-            "so open one when its condition matches the task:\n" + "\n".join(lines))
-
-
 def render_preamble(home, cwd):
     """Every block a session is given at start, in the order the two SessionStart hooks emit them.
 
@@ -592,11 +523,9 @@ def render_preamble(home, cwd):
     blocks = [("rules", _rules_block(home))]
     if not gitlog.is_repo(home):
         blocks.append(("diagnostic", NOT_REPO.format(home=home)))
-    index = area_index_for(home, cwd)
     blocks += [("where things stand", _stand_block(home)),
                ("read or changed lately", warm.block(home)),
-               ("area index", _area_block(home, cwd)),
-               ("other area conditions", _elsewhere_block(home, index))]
+               ("area index", _area_block(home, cwd))]
     return [(name, block) for name, block in blocks if block]
 
 
@@ -604,12 +533,9 @@ def hook_session_area(payload):
     """SessionStart: load the memory index for the working directory, within its own output budget."""
     if not config.attended():
         return
-    home = config.home()
-    cwd = payload.get("cwd") or os.getcwd()
-    index = area_index_for(home, cwd)
-    blocks = [block for block in (_area_block(home, cwd), _elsewhere_block(home, index)) if block]
-    if blocks:
-        _emit(_context("SessionStart", "\n\n".join(blocks)))
+    block = _area_block(config.home(), payload.get("cwd") or os.getcwd())
+    if block:
+        _emit(_context("SessionStart", block))
 
 
 def hook_session_start(payload):
