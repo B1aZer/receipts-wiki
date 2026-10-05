@@ -15,6 +15,11 @@ from pathlib import Path
 from . import (actions, archive, changes, checks, config, frontmatter, gitlog, indexer, related, secrets,
                state, topics, turns, warm, watch)
 
+NO_HOME = ("receipts-wiki is installed but there is no memory home at {home}. "
+           "If the user wants shared memory, suggest the receipts-wiki setup skill.")
+NOT_REPO = ("receipts-wiki: {home} is not the root of a git repository, so memory changes "
+            "are not recorded. Suggest the receipts-wiki setup skill.")
+
 REVISION = re.compile(r"^(HEAD|ORIG_HEAD|FETCH_HEAD|@)([~^]\d*)*$|^[0-9a-f]{7,40}([~^]\d*)*$")
 RESET_MODES = {"--hard", "--soft", "--mixed", "--merge", "--keep"}
 SEPARATORS = {"&&", "||", ";", "|", "&", "(", ")"}
@@ -463,14 +468,34 @@ def _cursor_pointers(home, limit=8):
     return "\n".join(lines)
 
 
-def hook_session_area(payload):
-    """SessionStart: load the memory index for the working directory, within its own output budget."""
-    if not config.attended():
-        return
-    home = config.home()
-    index = area_index_for(home, payload.get("cwd") or os.getcwd())
+def _rules_block(home):
+    """AGENTS.md as a session receives it, truncated to its byte budget."""
+    agents = home / "AGENTS.md"
+    if not agents.exists():
+        return ""
+    raw = agents.read_bytes()
+    text = raw.decode("utf-8", errors="replace")
+    if len(raw) > config.AGENTS_BUDGET_BYTES:
+        cut = raw[: config.AGENTS_BUDGET_BYTES].decode("utf-8", errors="ignore")
+        if "\n" in cut:
+            cut = cut[: cut.rfind("\n")]
+        text = cut + f"\n\n[receipts-wiki loaded only the first {config.AGENTS_BUDGET_BYTES} of {len(raw)} bytes of AGENTS.md; shorten it.]"
+    return f"Rules from {agents}, loaded by receipts-wiki:\n\n{text}"
+
+
+def _stand_block(home):
+    """The cursor pointers, under the heading a session sees them under."""
+    pointers = _cursor_pointers(home)
+    if not pointers:
+        return ""
+    return "Where things stand (open the cursor note for the area you're working in):\n" + pointers
+
+
+def _area_block(home, cwd):
+    """The memory index for a working directory, as a session receives it."""
+    index = area_index_for(home, cwd)
     if not index:
-        return
+        return ""
     text = index.read_text(encoding="utf-8", errors="replace")
     note = ""
     if len(text) > config.AREA_INDEX_CHARS:
@@ -478,24 +503,48 @@ def hook_session_area(payload):
         cut = cut[: cut.rfind("\n")] if "\n" in cut else cut
         note = f"\n\n[receipts-wiki loaded the first {len(cut)} of {len(text)} characters of this index; open {index} for the rest.]"
         text = cut
-    _emit(_context("SessionStart", f"Memory index for this working directory, {index}, loaded by receipts-wiki. "
-                                   f"Open only the notes the task needs.\n\n{text.rstrip()}{note}"))
+    return (f"Memory index for this working directory, {index}, loaded by receipts-wiki. "
+            f"Open only the notes the task needs.\n\n{text.rstrip()}{note}")
+
+
+def render_preamble(home, cwd):
+    """Every block a session is given at start, in the order the two SessionStart hooks emit them.
+
+    Returns a list of (name, text) pairs in emission order; the names are for reporting, the text is
+    what lands in the session. Pure: it reads memory and git and writes nothing. The hooks below render the same blocks through
+    the same functions, so what `rw.py preamble` prints cannot drift from what a session receives.
+
+    Three things a session also gets are deliberately absent, because they are not context: the
+    catch-up commits and the sweep (side effects), the notices that go to the user as a
+    systemMessage, and the per-prompt notice of what another session changed (`rw.py watch`).
+    """
+    if not home.exists():
+        return [("diagnostic", NO_HOME.format(home=home))]
+    blocks = [("rules", _rules_block(home))]
+    if not gitlog.is_repo(home):
+        blocks.append(("diagnostic", NOT_REPO.format(home=home)))
+    blocks += [("where things stand", _stand_block(home)),
+               ("read or changed lately", warm.block(home)),
+               ("area index", _area_block(home, cwd))]
+    return [(name, block) for name, block in blocks if block]
+
+
+def hook_session_area(payload):
+    """SessionStart: load the memory index for the working directory, within its own output budget."""
+    if not config.attended():
+        return
+    block = _area_block(config.home(), payload.get("cwd") or os.getcwd())
+    if block:
+        _emit(_context("SessionStart", block))
 
 
 def hook_session_start(payload):
     home = config.home()
     session = payload.get("session_id")
     parts, notices = [], []
-    agents = home / "AGENTS.md"
-    if agents.exists():
-        raw = agents.read_bytes()
-        text = raw.decode("utf-8", errors="replace")
-        if len(raw) > config.AGENTS_BUDGET_BYTES:
-            cut = raw[: config.AGENTS_BUDGET_BYTES].decode("utf-8", errors="ignore")
-            if "\n" in cut:
-                cut = cut[: cut.rfind("\n")]
-            text = cut + f"\n\n[receipts-wiki loaded only the first {config.AGENTS_BUDGET_BYTES} of {len(raw)} bytes of AGENTS.md; shorten it.]"
-        parts.append(f"Rules from {agents}, loaded by receipts-wiki:\n\n{text}")
+    rules = _rules_block(home)
+    if rules:
+        parts.append(rules)
 
     # A session keeps the code it started with. On 2026-09-30 a session several releases behind
     # rewrote 29 of 33 generated indexes on one turn, and an earlier one filed notes under a type
@@ -508,11 +557,11 @@ def hook_session_start(payload):
                        "or avoid `build-index` and memory-wide rewrites until you do.")
 
     if not home.exists():
-        parts.append(f"receipts-wiki is installed but there is no memory home at {home}. If the user wants shared memory, suggest the receipts-wiki setup skill.")
+        parts.append(NO_HOME.format(home=home))
     else:
         data = state.load(session)
         if not gitlog.is_repo(home):
-            parts.append(f"receipts-wiki: {home} is not the root of a git repository, so memory changes are not recorded. Suggest the receipts-wiki setup skill.")
+            parts.append(NOT_REPO.format(home=home))
         else:
             if data["pending"]:
                 turns.flush_session(home, session, data, recovered=True)
@@ -533,12 +582,9 @@ def hook_session_start(payload):
                 notices.append(f"receipts-wiki: {len(stale)} memory file(s) have been uncommitted for over "
                                f"{turns.STALE_UNCOMMITTED_MINUTES} minutes: {shown}. Run `rw.py lint` for details.")
         state.save(session, data)
-        pointers = _cursor_pointers(home)
-        if pointers:
-            parts.append("Where things stand (open the cursor note for the area you're working in):\n" + pointers)
-        lately = warm.block(home)
-        if lately:
-            parts.append(lately)
+        for block in (_stand_block(home), warm.block(home)):
+            if block:
+                parts.append(block)
 
     if not config.attended():
         parts = []

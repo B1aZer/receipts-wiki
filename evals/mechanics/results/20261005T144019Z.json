@@ -1,0 +1,65 @@
+{
+  "fast": [
+    {
+      "check": "preamble",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "preamble-stable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "build-index",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "find",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "recall",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "lint",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "lint-docs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "history",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "changes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "review",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "watch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "resume",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "live": null
+}

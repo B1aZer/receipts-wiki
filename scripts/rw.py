@@ -14,6 +14,7 @@ Hooks (called by Claude Code; read the payload on stdin, print at most one JSON 
     rw.py hook session-end    same as stop, for the last turn
 
 Commands:
+    rw.py preamble [--cwd PATH] [--stable]   print what a session is given at start
     rw.py build-index [--no-commit]
     rw.py record [--agent NAME]
     rw.py precommit                 (run by the git pre-commit hook)
@@ -62,6 +63,9 @@ def main(argv):
 
     parser = argparse.ArgumentParser(prog="rw.py", description="receipts-wiki maintenance commands")
     commands = parser.add_subparsers(dest="command", required=True)
+    pre = commands.add_parser("preamble", help="print what a session is given at start; stdout is the context, stderr its sizes")
+    pre.add_argument("--cwd", default=None, help="render for this working directory instead of the current one")
+    pre.add_argument("--stable", action="store_true", help="replace elapsed times so two runs can be diffed")
     build = commands.add_parser("build-index", help="regenerate area indexes from note frontmatter")
     build.add_argument("--no-commit", action="store_true")
     rec = commands.add_parser("record", help="commit every uncommitted memory change as external.change")
@@ -102,6 +106,8 @@ def main(argv):
     args = parser.parse_args(argv)
 
     home = config.home()
+    if args.command == "preamble":
+        return cli.preamble(home, cwd=args.cwd, stable=args.stable)
     if args.command == "build-index":
         return cli.build_index(home, commit=not args.no_commit)
     if args.command == "record":

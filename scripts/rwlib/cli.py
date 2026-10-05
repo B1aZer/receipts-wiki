@@ -505,3 +505,35 @@ def lint(home, stale_days=90, unread_days=60, today=None, as_json=False, docs=Fa
     print(f"## Forgetting candidates ({len(forget)}), retire only with the owner's approval\n")
     print("\n".join(f"- {rel}: {'; '.join(reasons)}" for rel, reasons in sorted(forget.items())) if forget else "None.")
     return 0
+
+AGO = re.compile(r"\b\d+ (?:min|h|d|w|mo)(?= ago\b)")
+
+
+def preamble(home, cwd=None, stable=False):
+    """Print what a session is given at start, exactly as it is given.
+
+    Stdout is the context and nothing else, so it can be diffed between versions and asserted on in
+    the mechanics eval. The block names and sizes go to stderr, because the orientation is loaded into
+    every session and its size is the thing worth watching.
+    """
+    from . import hooks
+    where = str(Path(cwd).expanduser().resolve()) if cwd else str(Path.cwd())
+    blocks = hooks.render_preamble(home, where)
+    text = "\n\n".join(block for _, block in blocks)
+    if stable:
+        # A cursor line says when it last moved, so two runs of the same memory never match byte for
+        # byte. --stable replaces the elapsed time so a diff shows what changed and not how long ago.
+        text = AGO.sub("<elapsed>", text)
+    sys.stdout.write(text + ("\n" if text else ""))
+    sys.stderr.write(f"# receipts-wiki {config.version()} preamble for {where}\n")
+    for name, block in blocks:
+        sys.stderr.write(f"#   {name:24} {len(block):7,} characters\n")
+    sys.stderr.write(f"#   {'total':24} {len(text):7,} characters in {len(blocks)} block(s)\n")
+    newer = config.newer_installed()
+    if newer:
+        sys.stderr.write(f"# note: {newer} is installed; a session started now would say so as a notice.\n")
+    if stable:
+        sys.stderr.write("# --stable: elapsed times replaced with <elapsed> so two runs can be diffed.\n")
+    sys.stderr.write("# not shown: catch-up commits and the sweep (side effects), and the per-prompt\n"
+                     "#            notice of what another session changed (see `rw.py watch`).\n")
+    return 0

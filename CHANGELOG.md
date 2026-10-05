@@ -2,6 +2,14 @@
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - unreleased
+
+### Added
+
+- `rw.py preamble [--cwd <path>] [--stable]`: print what a session is given at start. The orientation — the rules from `AGENTS.md` within its byte budget, the cursor pointers with when each last moved, the warm list, and the area index for the working directory — was assembled inside the two `SessionStart` hooks, so the only way to see it was to start a session, and the mechanics eval could assert on what a turn left behind but not on what opened it. The blocks are now rendered by functions the hooks and the command share, and a test asserts the command's stdout equals the two hooks' `additionalContext` byte for byte: deliberately breaking one path turns it red, which is the only reason to trust it. Stdout is the context and nothing else; the block names and sizes go to stderr, because this text is loaded into every session and its size is what deserves watching (16,003 characters across four blocks on the author's home, against the 8 KB rules budget and the 9,000-character index cap).
+
+  Rendering is pure — no commit, no sweep, no state write, asserted by a test — so the catch-up commits that the real hook performs are absent by design, as is the per-prompt notice of another session's changes (`watch`). Checked against a live session's own recorded context: identical for the first 8,563 characters, then diverging only on elapsed times and on two cursor notes that other sessions had changed since that session started, which is the command reading current memory rather than a cached copy. `--stable` replaces those elapsed times so two runs can be diffed; without it they never match, which would have made the eval check meaningless.
+
 ## [0.3.0] - 2026-10-05
 
 ### Added

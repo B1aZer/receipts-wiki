@@ -50,6 +50,8 @@ SEED = {
 
 # Read-only commands: each must exit 0 and print no traceback.
 FAST_COMMANDS = [
+    ("preamble", ["preamble"]),
+    ("preamble-stable", ["preamble", "--stable"]),
     ("build-index", ["build-index", "--no-commit"]),
     ("find", ["find", "widget", "rollout"]),
     ("recall", ["recall", "what is the widget rollout at"]),
