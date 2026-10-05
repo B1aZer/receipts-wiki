@@ -51,10 +51,11 @@ def is_generated_index(home, rel):
     if not is_index_file(rel):
         return False
     try:
-        head = (Path(home) / rel).read_text(encoding="utf-8", errors="replace")[:400]
+        text = (Path(home) / rel).read_text(encoding="utf-8", errors="replace")
     except OSError:
-        head = (gitlog.head_content(home, rel) or "")[:400]
-    return GENERATED_MARK in head
+        text = gitlog.head_content(home, rel) or ""
+    _, body = frontmatter.split(text)
+    return GENERATED_MARK in body[:400]
 
 
 def is_generated(home, rel):
@@ -145,12 +146,46 @@ def note_line(item):
     return f"- [{item['name']}]({item['file']}){description}"
 
 
-def render_area(area, items):
+def index_frontmatter(path):
+    """The authored frontmatter of an index file, verbatim, or "" when it has none.
+
+    An index's body is generated; its frontmatter is not. `read_if` is written by a person and has to
+    survive every rebuild, so the generator carries the block over untouched instead of rewriting it.
+    """
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    if not text.startswith("---"):
+        return ""
+    end = text.find("\n---", 3)
+    if end == -1:
+        return ""
+    return text[: end + 4].rstrip("\n") + "\n\n"
+
+
+def area_conditions(home):
+    """[(area, read_if)] for every index that declares when it is worth opening."""
+    out = []
+    memory = Path(home) / "memory"
+    for path in sorted(memory.glob("index-*.md")):
+        try:
+            fm, _ = frontmatter.split(path.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+        condition = frontmatter.get(fm, "read_if", "metadata.read_if")
+        if condition:
+            area = path.name[len("index-"):-len(".md")]
+            out.append((area, " ".join(str(condition).split())))
+    return out
+
+
+def render_area(area, items, head=""):
     lines = [f"# {area} index", "", f"{GENERATED_MARK} Edit the notes, not this file.", ""]
     if not items:
         lines.append("No active notes.")
     lines.extend(note_line(item) for item in sorted(items, key=lambda n: n["name"].lower()))
-    return "\n".join(lines) + "\n"
+    return head + "\n".join(lines) + "\n"
 
 
 def render_cursors(cursors):
@@ -271,7 +306,7 @@ def build(home, include=None):
                             f"the {len(groups.get(area, []))} notes with area '{area}' are listed there only as "
                             f"long as someone keeps editing it")
             continue
-        text = render_area(area, groups.get(area, []))
+        text = render_area(area, groups.get(area, []), head=index_frontmatter(path))
         if _write_if_changed(path, text):
             changed.append(f"memory/{path.name}")
         if not within_budget(text):
