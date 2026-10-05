@@ -2,9 +2,11 @@
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [0.3.0] - unreleased
+## [0.3.0] - 2026-10-05
 
 ### Added
+
+- **0.3.0 is released.** It is the first tag since `0.1.0` on 2026-09-13, after 28 dev versions of a plugin in daily use — so the only version anyone could install was three weeks behind what its author was running. The README now leads with the problem and the five things a document does not get for free (receipts, hook-enforced rules, a readable history, a position that survives a crash, an archive that is never injected), with install above the per-hook table and the research citations kept where they were. `docs/comparison.md` states the position against the two alternatives — snippet capture with retrieval, and a document brain without provenance — each claim carrying the measurement behind it, and says plainly what this does not do. Prompted by prior art: operator-memory's 2026-10-03 essay reaches the same documents-over-retrieval conclusion independently, which makes the part that is actually different worth stating in one place instead of leaving it implicit in a table of hooks. Reasoning and the revised work order are in `docs/PLAN.md` section 10.
 
 - `metadata.done_when` on cursor notes: what would make a workstream finished, shown at session start under the cursor it belongs to. Cursors held *where work stands* and `metadata.status` held live/parked/closed, but nothing held *what would finish it* — and an agent that cannot tell whether a step completed the work has one safe move, which is to ask. Measured over 7,113 turns, 29% of turns end by asking and **10% ask having changed nothing**; that 10% is what this is aimed at, and if it does not move the criteria are decoration and should be dropped rather than defended.
 
@@ -80,7 +82,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `indexer.build` renders cursor notes in a dedicated `## Where things stand` block in `MEMORY.md` and keeps them out of the per-area indexes.
 - `templates/AGENTS.md` and `templates/WRITING.md` document cursor notes and their exemptions from the fact-note rules (task state allowed, overwrite in place, no receipts).
 
-## [0.2.0] - unreleased
+## [0.2.0] - never released; its entries shipped in 0.3.0
 
 ### Added
 

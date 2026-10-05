@@ -4,17 +4,56 @@ Git-versioned memory for AI agents, where every remembered fact carries its rece
 
 receipts-wiki builds on Claude Code's built-in auto memory and adds what it lacks: one memory home shared by every agent and directory, a git commit for each agent turn that changed memory, naming the session and the reasons, checks that stop stale or secret-bearing writes, and an archive of past conversations that is searched only when you ask. It extends Andrej Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) idea file from knowledge you collect to the knowledge an agent produces while it works. Unofficial, and not affiliated with Karpathy.
 
-Status: 0.3.0-dev, in daily use by its author since 2026-09-13. First eval results are under [Results so far](#results-so-far).
+Status: 0.3.0, released 2026-10-05, in daily use by its author since 2026-09-13. First eval results are under [Results so far](#results-so-far).
 
-| File | What it is |
-|---|---|
-| [IDEA.md](IDEA.md) | The idea file. Paste it into any agent to build your own version. |
-| [hooks/hooks.json](hooks/hooks.json), [scripts/rw.py](scripts/rw.py) | The Claude Code plugin: hooks and a small command line |
-| [skills/](skills/) | Five skills: `find` (search every note by topic; the agent may use it on its own), and the manual `setup`, `recall`, `resume` (recover a lost session), `lint-review` |
-| [templates/](templates/) | `AGENTS.md` (guardrails for every agent) and `WRITING.md` (how to write a note) |
-| [docs/](docs/) | [COMMIT-SPEC.md](docs/COMMIT-SPEC.md), [PLAN.md](docs/PLAN.md), [manual-install.md](docs/manual-install.md) |
-| [evals/](evals/) | A no-network functional eval, model-behaviour checks, the update-correctness eval, the drift eval (does memory stay findable and current across sessions and directories?) and the mechanics eval (do the hooks and commands produce their artifacts in a real session?). |
-| [EXAMPLES.md](EXAMPLES.md) | What the hooks and commands produce |
+## The problem
+
+An agent begins every session knowing nothing about the work you did with it yesterday. The common answer is to
+cut past sessions into snippets, embed them, and inject the nearest few on every prompt. That trades one problem
+for several: similarity ranking cannot tell a current fact from the decision it replaced, a snippet arrives
+stripped of the reasoning that made it true, nothing supersedes anything, and what the agent believes is a
+database you cannot open and read.
+
+The alternative is older and duller: write things down. Nobody rewatches a meeting from three years ago to
+recover a constraint, they read the note someone wrote. Several recent tools have converged on this, and
+receipts-wiki is one of them.
+
+What it adds is the part a document does not get for free.
+
+- **A receipt on every fact.** A note states one fact and cites what settles it: a commit, a run, a query, a
+  file and line, a transaction, a URL. A survey of the seven most-installed memory skills found none of them
+  tracking provenance at all, and requiring stored claims to cite a source event is what reduced false
+  authority in the one study that measured it.
+- **Rules that hold because a hook refuses.** A write is blocked if the file changed after this session read
+  it, or if it carries a secret value, an injected system tag or a relative date. Commands that would rewrite
+  memory history are blocked. Instruction alone did not hold in testing; the gate does.
+- **A history you can read.** What a turn changed is one commit at the end of that turn, naming the session,
+  the turn and the reasons taken from the note. A correction rewrites one small file, adds a `Supersedes` line
+  with the date and the evidence, and leaves the previous version in git.
+- **A position that survives a crash.** A `cursor` note holds where a workstream stands and what would finish
+  it, so a session that dies without warning leaves a position written down rather than one to reconstruct.
+- **An archive that is a recovery log, not a retrieval source.** Past conversations are kept, redacted, outside
+  git. Nothing in them is ever injected into a prompt. They are read only when you ask, by `recall` or
+  `resume`, and unattended runs archive nothing.
+
+Each of these answers a failure someone has measured. The citations are under [Why](#why), the comparison with
+retrieval-based and document-only memory is in [docs/comparison.md](docs/comparison.md), and what it does not
+do is under [Limitations](#limitations).
+
+## Install
+
+In Claude Code:
+
+```
+/plugin marketplace add B1aZer/receipts-wiki
+/plugin install receipts-wiki@receipts-wiki
+```
+
+Then run `/receipts-wiki:setup` once. It shows what it found and what it would change, and writes only what you approve: the memory home, `autoMemoryDirectory` in your settings, transcript retention, and an optional copy of your existing per-project memory. Start a new session afterwards.
+
+To try it without installing: `claude --plugin-dir /path/to/receipts-wiki`.
+
+Other agents read the same rules through `AGENTS.md` (Codex: `ln -s ~/.agents/AGENTS.md ~/.codex/AGENTS.md`) and commit their own memory writes. Anything they leave uncommitted is recorded as `external.change` at the next catch-up in a Claude Code session. To use the hooks without the plugin system, see [docs/manual-install.md](docs/manual-install.md).
 
 ## What happens in a session
 
@@ -40,20 +79,32 @@ A **cursor note** (a file named `cursor_<area>.md`, one per area) holds the curr
 
 There is no network access, telemetry, vector database or background model call. It needs git and Python 3.9 or later.
 
-## Install
-
-In Claude Code:
+## The memory home
 
 ```
-/plugin marketplace add B1aZer/receipts-wiki
-/plugin install receipts-wiki@receipts-wiki
+~/.agents/                  git repository, no remote
+  AGENTS.md                 rules for every agent
+  memory/                   Claude Code auto memory points here
+    MEMORY.md               your text, plus a generated list of every note (of area indexes once memory is large)
+    index-<area>.md         generated from note frontmatter
+    <note>.md               one fact per file
+  sessions/YYYY/MM/*.md     conversation archive, redacted, outside git
+  .state/                   read hashes and last-read dates, outside git
 ```
 
-Then run `/receipts-wiki:setup` once. It shows what it found and what it would change, and writes only what you approve: the memory home, `autoMemoryDirectory` in your settings, transcript retention, and an optional copy of your existing per-project memory. Start a new session afterwards.
+The history of a note is `git log -p -- memory/<note>.md`, or `rw.py history <note>`. The commit format is in [docs/COMMIT-SPEC.md](docs/COMMIT-SPEC.md).
 
-To try it without installing: `claude --plugin-dir /path/to/receipts-wiki`.
+## What is in here
 
-Other agents read the same rules through `AGENTS.md` (Codex: `ln -s ~/.agents/AGENTS.md ~/.codex/AGENTS.md`) and commit their own memory writes. Anything they leave uncommitted is recorded as `external.change` at the next catch-up in a Claude Code session. To use the hooks without the plugin system, see [docs/manual-install.md](docs/manual-install.md).
+| File | What it is |
+|---|---|
+| [IDEA.md](IDEA.md) | The idea file. Paste it into any agent to build your own version. |
+| [hooks/hooks.json](hooks/hooks.json), [scripts/rw.py](scripts/rw.py) | The Claude Code plugin: hooks and a small command line |
+| [skills/](skills/) | Five skills: `find` (search every note by topic; the agent may use it on its own), and the manual `setup`, `recall`, `resume` (recover a lost session), `lint-review` |
+| [templates/](templates/) | `AGENTS.md` (guardrails for every agent) and `WRITING.md` (how to write a note) |
+| [docs/](docs/) | [comparison.md](docs/comparison.md) (how this differs from retrieval-based and document-only memory), [COMMIT-SPEC.md](docs/COMMIT-SPEC.md), [PLAN.md](docs/PLAN.md), [manual-install.md](docs/manual-install.md) |
+| [evals/](evals/) | A no-network functional eval, model-behaviour checks, the update-correctness eval, the drift eval (does memory stay findable and current across sessions and directories?) and the mechanics eval (do the hooks and commands produce their artifacts in a real session?). |
+| [EXAMPLES.md](EXAMPLES.md) | What the hooks and commands produce |
 
 ## Updating
 
@@ -79,21 +130,6 @@ claude plugin update receipts-wiki                   # install it into the run c
 ```
 
 The checkout Claude Code manages (`~/.claude/plugins/marketplaces/receipts-wiki`) is refreshed by `marketplace update`; do not hand-edit it, so its pull never conflicts. `claude plugin prune` removes superseded cached versions.
-
-## The memory home
-
-```
-~/.agents/                  git repository, no remote
-  AGENTS.md                 rules for every agent
-  memory/                   Claude Code auto memory points here
-    MEMORY.md               your text, plus a generated list of every note (of area indexes once memory is large)
-    index-<area>.md         generated from note frontmatter
-    <note>.md               one fact per file
-  sessions/YYYY/MM/*.md     conversation archive, redacted, outside git
-  .state/                   read hashes and last-read dates, outside git
-```
-
-The history of a note is `git log -p -- memory/<note>.md`, or `rw.py history <note>`. The commit format is in [docs/COMMIT-SPEC.md](docs/COMMIT-SPEC.md).
 
 ## Why
 
@@ -159,6 +195,8 @@ An earlier run of the same eval took 58% more time than plain auto memory. Its t
 The LLM Wiki pattern and its implementations, such as [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) and [astro-han/karpathy-llm-wiki](https://github.com/astro-han/karpathy-llm-wiki), build knowledge from sources you ingest. receipts-wiki keeps that loop for work memory and adds receipts per claim, recorded corrections, one home for all agents, generated index budgets and write-time checks. It avoids having a model merge new material into existing pages, the approach behind two problems in llm_wiki's own tracker: an ingest prompt of 1,723,391 tokens against a 524,288-token context ([#706](https://github.com/nashsu/llm_wiki/issues/706)) and duplicate pages for the same entity ([dedup.ts](https://github.com/nashsu/llm_wiki/blob/main/src/lib/dedup.ts)).
 
 Claude Code's auto memory stays the loader. receipts-wiki points it at a shared folder, versions that folder, checks writes, and gives other agents the same rules through `AGENTS.md`.
+
+The longer comparison — snippet-and-retrieve memory, a document brain, and this — with the measurements behind each claim, is in [docs/comparison.md](docs/comparison.md).
 
 ## Limitations
 
