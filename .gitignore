@@ -6,3 +6,4 @@ docs/PLAN-log-first.md
 evals/update_correctness/results/*.jsonl
 evals/drift/results/*.jsonl
 evals/behaviour/results/
+evals/dependency/results/*.json

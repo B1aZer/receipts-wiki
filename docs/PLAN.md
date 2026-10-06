@@ -249,3 +249,43 @@ Prompted by prior art rather than by a failure of our own: **operator-memory** (
 **What happened, 2026-10-05.** All three shipped the same day and two of them came straight back out, which is the section working as intended. The README and `docs/comparison.md` went out with 0.3.0, the first tag since 0.1.0. `rw.py preamble` stayed: the orientation is one rendered artifact, a test holds it byte-identical to the two `SessionStart` hooks, and it put a number on something that had never been measured — 16,003 characters across four blocks on the author's home. `read_if` was built, measured at 3/3 file checks and 6/6 answers in both drift arms for $1.57, and removed: it restated in a second place what the always-loaded area map already carried. One latent bug was kept from it, `is_generated_index` finding the generated mark below an index's frontmatter rather than in its first 400 bytes, which would otherwise have stopped such an index being regenerated for good.
 
 **And the fourth item turned out not to exist as written.** "The remaining log-first phases" named a dependency verifier as future work; §3.4 of that plan had already shipped it on 2026-09-29 as the review queue, and the only piece missing was the `verify` verb that clears a mark. Measured before building it: in six days of live use the `review` command had been run by two sessions, the one that built it and the one that deleted it, with no memory commit citing the queue and no note ever corrected by it, against 11 standing marks of which about one in seven was a real dependent. So the queue went too, and `verify` was never built. The lesson is the one worth carrying into whatever comes next: **a queue is a pull mechanism and nothing here pulls.** Every mechanism in this plugin with evidence behind it pushes into the session — the turn-end checks, the per-prompt notice of another session's changes. A reading list in a file asks an agent to know it is missing something, which is the failure section 2 cites against search tools. If dependency invalidation returns it returns as a turn-end check on the one edge worth trusting, an explicit `[[link]]` to a note just superseded, and it is measured against the same standard as everything else here.
+
+## 11. Update 2026-10-06 — what dependency invalidation is actually worth
+
+Section 10 removed the review queue on two grounds: it measured as unused, and a queue is a pull
+mechanism in a plugin where everything that works pushes. The first is solid. The second is the
+transferable lesson. But that entry also said the precision "was fixable and that was not the
+problem", which was a claim made without a number, and it turns out to be the part that was wrong.
+
+`evals/dependency/backtest.py` answers it from the memory home's own history, with no model calls:
+for every `fact.updated` event, the notes that declared a dependency on the updated note are the
+candidates, and the question is whether a later commit changed a line in them mentioning that note.
+A rate alone says nothing, because a note edited often churns anyway, so the number that matters is
+the lift over a placebo — the same pairs, the same window length, started at random times that are
+not within one window of a real update of that note.
+
+**The result** (`evals/dependency/results/20261006-summary.md`; 426 `fact.updated` commits over 22.9
+days, 923 (commit, note) events, 610 with any declared dependent, 2,034 candidate pairs, 2-day
+window): a dependent's text about the updated note changed in **11.3%** of 1,726 real windows against
+**3.4%** of 5,178 placebo windows — a lift of **+7.9 points, about 3.3x chance**. Catching up took a
+median of 1.7 days and as long as 15.7. The author handled the dependent in the same commit in 21
+pairs out of 2,034, which is 1%: nothing was quietly doing this job already.
+
+So the effect is real, and the per-pair precision is the binding constraint. An event with any
+dependents has 3.3 of them and 0.38 get touched inside two days, so a mechanism that fires per pair
+is right about one time in nine. That is the same order as the 2026-09-28 hand-judged study — 62 real
+dependents among 263 candidates, 24%, judging "should have changed" where the backtest counts "did
+change". Two measurements of different kinds agreeing on "real but far too diffuse to act on" is
+worth more than either alone.
+
+**11.3% is now the bar**, and it is cheap to clear or fail: any proposed selector — a kind of link, a
+recency weight, a note type, the §3.4 named-things ranking — gets measured as a filter on this same
+backtest, in minutes, for nothing. Below the bar it is noise with extra steps. Nothing gets built on
+the argument that dependencies obviously matter; they do, measurably, and that is not sufficient.
+
+**Two invalid controls are kept in the script's docstring**, because the second is the trap. Comparing
+the window after each event with the window before it reports a large *negative* lift, and the
+censored version of the same comparison still does — because every pair has a prior change, 2,034 of
+2,034, since acquiring the link is itself a change to the dependent's text about the note. The
+before-window measures link creation. Any future attempt at this will reach for that comparison
+first.

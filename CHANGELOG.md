@@ -2,6 +2,16 @@
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `evals/dependency/backtest.py`: what dependency invalidation is actually worth, measured from a memory home's own git history with no model calls. For every `fact.updated` event, the notes declaring a dependency on the updated note are the candidates, and the test is whether a later commit changed a line in them mentioning it. A rate alone says nothing, since a note edited often churns anyway, so the number is the lift over a placebo — same pairs, same window length, start time moved to somewhere no event occurred.
+
+  On the author's home (426 such commits over 22.9 days, 2,034 candidate pairs, 2-day window): **11.3% after a real event against 3.4% after a placebo, a lift of +7.9 points, about 3.3x chance**. The effect is real, the dependent catches up a median of 1.7 days later, and the author handled it in the same commit in 21 pairs of 2,034. An event with any dependents has 3.3 of them and 0.38 get touched inside the window, so **a per-pair notification is right about one time in nine** — the same order as the 2026-09-28 hand-judged study at 24%, which judged "should have changed" where this counts "did change".
+
+  This corrects the review-queue entry in 0.4.0, which said the precision "was fixable and that was not the problem". The pull-versus-push argument there stands; the precision claim was made without a number and the number says precision is the binding constraint. 11.3% is now the bar any dependency selector has to clear on this backtest before anything is built, and the backtest re-runs in minutes for nothing. Reasoning in `docs/PLAN.md` section 11; two invalid controls are kept in the script's docstring because the second one — comparing the window before each event with the window after — is a trap that reports a negative lift, since acquiring a link is itself a change to the dependent's text about the note.
+
 ## [0.4.0] - 2026-10-05
 
 ### Added
