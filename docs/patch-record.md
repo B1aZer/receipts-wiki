@@ -99,9 +99,20 @@ which no hook binds, and is not a target either.
 ⭐ **What survives an in-place code update is exactly what is re-resolved at use time; what breaks is
 everything captured at start.** The two facts this route rests on are the two sides of that sentence: a
 fresh `python3` per hook invocation re-resolves the *code* (so a patch lands), and `${CLAUDE_PLUGIN_ROOT}`
-is captured once per process (so an install does not). Python's `importlib.reload` is documented to behave the
-same way: references held to the old objects are not rebound to the new ones, and existing instances keep
-the old class definition. (Characterised from that documentation, not quoted from a fetched copy.)
+is captured once per process (so an install does not). Python's `importlib.reload` documents the same thing as
+library behaviour, and these are quoted from the page itself, fetched and read 2026-10-14:
+
+> Other references to the old objects (such as names external to the module) are not rebound to refer to
+> the new objects and must be updated in each namespace where they occur if that is desired.
+
+> If a module instantiates instances of a class, reloading the module that defines the class does not
+> affect the method definitions of the instances — they continue to use the old class definition. **The
+> same is true for derived classes.**
+
+⭐ **That last sentence is the sharpest form of the problem and it was missing from the version being
+passed around:** the staleness is *inherited*. A subclass defined after the reload still carries the old
+definition, so "I replaced the file" does not even bound the damage to the objects that existed when it
+was replaced.
 
 ⚠️ **And a reported failure of exactly this shape, which is why the behavioural check is the load-bearing
 half rather than belt-and-braces.** A Unicorn `USR2` restart is reported to have kept loading the *old*
