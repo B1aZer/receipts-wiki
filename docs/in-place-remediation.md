@@ -61,9 +61,28 @@ tree that an earlier aborted run had already patched — a mislabel, not a measu
    after its code has been fixed in place. The remediation and the detector conflict, and the detector has
    to learn to read the patch record and compare content — not be quietly tuned to stop mentioning
    something that really happened.
-3. **One hazard a restart does not have:** patching can change behaviour *between two hook calls inside a
-   single turn*. Benign for this fix, where the two builds differ only in whether a quote is appended.
-   Not benign for a generator or budget change.
+3. **The provenance record** (`docs/patch-record.md`) names every target, the md5 before, the source file
+   and its commit, and the md5 each target must have afterwards — so the patch is verifiable rather than
+   merely logged, and is committed before the first copy.
+
+## Which fixes may go down this path, and why that line exists
+
+⚠️ **Patching can change behaviour between two hook calls inside a single turn** — a session's
+`SessionStart` context rendered by build A, its next prompt notice by build B. For this fix that is benign,
+because the two builds differ only in whether a quote is appended to a line that is otherwise identical.
+For a generator, a budget or an index-layout change it is not benign at all: a session would write half an
+artefact under each rule, and that is the 2026-09-30 failure (29 of 33 generated indexes rewritten) with a
+narrower window rather than a different cause.
+
+**So this hazard is not a caveat on the route, it is the reason the route is split in two:**
+
+- **Content fixes** — where every build involved is correct apart from the defect, and a turn straddling
+  the change is still coherent — may be patched in place, because the leak costs more than the straddle.
+- **Behaviour changes** — generators, budgets, gates, anything whose output a later turn depends on —
+  keep the version pin and wait for a restart, because a straddled turn is itself the defect.
+
+The line is whether a turn that begins under one build and ends under the other still makes sense. That
+test is what decides the channel, and it is the whole of the rule.
 
 ## Why a stable path is not the permanent answer
 
@@ -71,7 +90,8 @@ The tempting conclusion is that executable code should resolve through a stable 
 reaches running processes and no remediation is ever needed. Today is the argument against it.
 
 - **It converts a guarantee into a hazard.** "A session keeps the code it started with" is a consistency
-  property, not only a defect; a stable path promotes item 3 above from an edge case to the design.
+  property, not only a defect. A stable path makes the straddle above the normal case rather than an
+  operator's deliberate choice — and it removes the ability to confine it to content fixes.
 - **It removes the rollback window.** This incident was survivable *because* 15 sessions kept the old
   build. Had the fix been wrong, a stable path would have propagated it fleet-wide instantly with nothing
   still running the previous code. "Slow to fix" and "small blast radius" are one property seen from two
