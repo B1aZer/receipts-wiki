@@ -6,8 +6,18 @@ file the install record claims a session is running a commit whose files it does
 this project issues rests on that field, which is the whole reason the order is fixed: the record first,
 then the copy, then the verification against the record.
 
-**Status: nothing has been patched.** The table below is the *before* state and the *intended* result. No
-tree under `~/.claude/plugins/cache/` has been modified. Awaiting the owner's decision.
+**Status: nothing has been patched. Approved, then BLOCKED.** The owner approved the patch on
+2026-10-14 with its three costs stated. ⚠️ **The copy is refused by Claude Code's auto-mode classifier as
+"Modify Shared Resources"**, and no attempt was made to perform the same write through another tool: the
+denial is about the target, not the tool, so routing around it would defeat its intent. The session can
+read the cache but not write it. **The patch therefore needs an operator**, exactly as the restart route
+did — which is itself a finding: both remediations are blocked at the same boundary, and the plugin's own
+session cannot repair the plugin.
+
+**Pre-flight re-verified at the time of the attempt, and it passes:** the source file hashes
+`864112d320f46bf5a506ae3964a7a4ee`, equal to the value this record committed to, and **all ten targets
+still hash `9d842ec571af8599783392a02f7480bb`** — so nothing changed under us since this record was
+committed, and the stop condition below does not apply.
 
 ## Why
 
@@ -49,6 +59,29 @@ rather than merely logged: after copying, every row's actual md5 must equal it.
 
 `0.4.1-dev.1` is the source and is not a target. `marketplaces/receipts-wiki` is the marketplace checkout,
 which no hook binds, and is not a target either.
+
+## The one law behind all three conditions
+
+⭐ **What survives an in-place code update is exactly what is re-resolved at use time; what breaks is
+everything captured at start.** The two facts this route rests on are the two sides of that sentence: a
+fresh `python3` per hook invocation re-resolves the *code* (so a patch lands), and `${CLAUDE_PLUGIN_ROOT}`
+is captured once per process (so an install does not). Python's own `importlib.reload` documentation states
+the same thing as library behaviour — *"Other references to the old objects are not rebound to refer to the
+new objects"*, and instances *"continue to use the old class definition."*
+
+⚠️ **And the production failure that makes the liveness check the load-bearing half, not the belt-and-braces
+one.** Unicorn's `USR2` restart kept loading the *old* release because the process had `chdir`-ed at first
+start to the path returned by `` /bin/sh -c pwd ``, which resolved to the real release directory rather than
+to the `current` symlink. **Every file was correct and a hash check would have matched, while the running
+process still executed old code.** So: *a process that resolves a stable path once, at start, is pinned
+exactly as if the stable path never existed — therefore verification must read what the running process
+RESOLVED, never that the path is correct.* An md5 match proves the file arrived; only a behavioural check
+proves the hook executes it. (Surveyed independently by `unrekt-84`; the maintainer's own diagnosis on the
+unicorn mailing list.)
+
+Related, for the retention question rather than for today: PM2 raises `ENOENT` from `process.cwd()` once
+pruning deletes the release a process started in. **How long old trees are kept is part of the design, not
+cleanup** — which is a second reason the ten stale trees here are patched rather than removed.
 
 ## Conditions this record exists to satisfy
 
