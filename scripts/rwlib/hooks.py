@@ -453,6 +453,15 @@ def hook_prompt(payload):
         elsewhere = watch.notice(home, session, data)
         if elsewhere:
             notes.append(elsewhere)
+        # Asked here rather than only at session start, because the session-start answer is the one
+        # answer that cannot be informative: the newer copy does not exist yet when it runs. First
+        # sight records the installed commit and says nothing, exactly as the watch offset does, so a
+        # session never opens with a notice about an install it has always been running.
+        stale = config.superseded(seen=data.get("install"))
+        if stale:
+            notes.append(stale)
+        if not data.get("install"):
+            data["install"] = config.installed_build()
     state.save(session, data)
     if notes and config.attended():
         _emit(_context("UserPromptSubmit", "\n\n".join(notes)))
@@ -574,7 +583,9 @@ def hook_session_start(payload):
     # scheme that had already been replaced. Neither announced itself; both looked like ordinary work.
     newer = config.newer_installed()
     if newer:
-        notices.append(f"receipts-wiki: this session is running {config.version()} but {newer} is installed. "
+        build = config.installed_build()
+        notices.append(f"receipts-wiki: this session is running {config.ROOT} but {newer} is installed"
+                       f"{' at commit ' + build['commit'][:12] if build.get('commit') else ''}. "
                        "A session keeps the code it started with, so its rules, generators and gate are the older ones "
                        "— regenerating indexes from here can undo work a newer session did. Restart to pick up the new version, "
                        "or avoid `build-index` and memory-wide rewrites until you do.")

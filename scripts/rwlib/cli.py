@@ -509,7 +509,14 @@ def preamble(home, cwd=None, stable=False):
         # byte. --stable replaces the elapsed time so a diff shows what changed and not how long ago.
         text = AGO.sub("<elapsed>", text)
     sys.stdout.write(text + ("\n" if text else ""))
+    # The bound root and the installed commit, never the version string on its own: 0.4.1-dev.1 was set
+    # in 89f2af7 and d2b4ec9 never bumped it, so the build that leaked another session's user turns and
+    # the build that fixed it print the same version. On stderr, so it costs no session context.
+    build = config.installed_build()
     sys.stderr.write(f"# receipts-wiki {config.version()} preamble for {where}\n")
+    sys.stderr.write(f"#   bound root            {config.ROOT}\n")
+    sys.stderr.write(f"#   installed commit      {build.get('commit') or 'unknown'} "
+                     f"({build.get('updated') or 'unknown'})\n")
     for name, block in blocks:
         sys.stderr.write(f"#   {name:24} {len(block):7,} characters\n")
     sys.stderr.write(f"#   {'total':24} {len(text):7,} characters in {len(blocks)} block(s)\n")

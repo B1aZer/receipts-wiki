@@ -311,6 +311,74 @@ class ShellWriteTests(HookTestCase):
         self.assertGreater(config._version_key("0.3.0-dev.26"), config._version_key("0.3.0-dev.9"))
         self.assertGreater(config._version_key("0.3.0"), config._version_key("0.3.0-dev.26"))
 
+    def _record(self, install_path, commit, updated="2026-10-14T08:22:32.300Z"):
+        """A stand-in for ~/.claude/plugins/installed_plugins.json."""
+        import json
+        path = self.tmp / "installed_plugins.json"
+        path.write_text(json.dumps({"version": 1, "plugins": {"receipts-wiki@receipts-wiki": [
+            {"scope": "user", "installPath": str(install_path), "version": "0.4.1-dev.1",
+             "lastUpdated": updated, "gitCommitSha": commit}]}}))
+        return path
+
+    def test_a_session_bound_to_a_superseded_install_is_told_at_its_next_prompt(self):
+        """The guard that existed ran only at session start -- before the newer copy exists, so in the
+        one case it was written for it could only ever return "". On 2026-10-14 that let 15 of 16 live
+        sessions go on running a build that quoted other sessions' user turns into this one, three of
+        them provably, the last nearly five hours after the fix was installed."""
+        import sys
+        sys.path.insert(0, str(RW.parent))
+        from rwlib import config
+        cache = self.tmp / "cache" / "receipts-wiki" / "receipts-wiki"
+        (cache / "0.4.0").mkdir(parents=True)
+        (cache / "0.4.1-dev.1").mkdir(parents=True)
+        record = self._record(cache / "0.4.1-dev.1", "d2b4ec9c6ac6720f98b2c002e417ec09ae66607b")
+
+        stale = config.superseded(record=record, root=cache / "0.4.0")
+        self.assertIn("0.4.0", stale)
+        self.assertIn("0.4.1-dev.1", stale)
+        self.assertIn("d2b4ec9c6ac6", stale, "the commit is the receipt; the version string is not")
+        self.assertEqual("", config.superseded(record=record, root=cache / "0.4.1-dev.1"))
+
+    def test_the_check_is_quiet_outside_the_install_cache(self):
+        """A contributor's clone and the marketplace checkout are not installs and no hook binds them.
+        Firing there would nag forever in the one place the code is changed on purpose, which is how a
+        gate teaches everyone to ignore it."""
+        import sys
+        sys.path.insert(0, str(RW.parent))
+        from rwlib import config
+        cache = self.tmp / "cache" / "receipts-wiki" / "receipts-wiki"
+        (cache / "0.4.0").mkdir(parents=True)
+        (cache / "0.4.1-dev.1").mkdir(parents=True)
+        record = self._record(cache / "0.4.1-dev.1", "d2b4ec9c6ac6720f98b2c002e417ec09ae66607b")
+        # A positive control FIRST, in this same test. Without it the assertions below are satisfied by
+        # the check being dead -- which is how every gate audited on 2026-10-14 came to pass while the
+        # property it stood for was false, and this test passed with the fix reverted until it was added.
+        self.assertNotEqual("", config.superseded(record=record, root=cache / "0.4.0"),
+                            "the check must be alive for the silences below to mean anything")
+        for elsewhere in (self.tmp / "Sites" / "receipts-wiki", self.tmp / "marketplaces" / "receipts-wiki"):
+            self.assertEqual("", config.superseded(record=record, root=elsewhere))
+
+    def test_a_reinstall_of_the_same_version_is_caught_by_the_commit(self):
+        """0.4.1-dev.1 was set in 89f2af7, the commit before the multi-session fix, and d2b4ec9 never
+        bumped it -- so the leaking build and the fixed one report the identical version. Only the
+        commit changes, which is why the session records it rather than the version."""
+        import sys
+        sys.path.insert(0, str(RW.parent))
+        from rwlib import config
+        cache = self.tmp / "cache" / "receipts-wiki" / "receipts-wiki"
+        (cache / "0.4.1-dev.1").mkdir(parents=True)
+        here = cache / "0.4.1-dev.1"
+        before = self._record(here, "89f2af7" + "0" * 33)
+        seen = config.installed_build(before)
+        self.assertEqual(seen["commit"][:7], "89f2af7")
+        after = self._record(here, "d2b4ec9c6ac6720f98b2c002e417ec09ae66607b")
+        stale = config.superseded(seen=seen, record=after, root=here)
+        self.assertIn("reinstalled during this session", stale)
+        self.assertIn("89f2af70000", stale)
+        self.assertIn("d2b4ec9c6ac6", stale)
+        # First sight has nothing to compare against and must stay silent, like the watch offset.
+        self.assertEqual("", config.superseded(seen=None, record=after, root=here))
+
     def test_file_changed_before_the_turn_is_left_to_catch_up(self):
         path = self.home / "memory" / "old.md"
         path.write_text(note("old-note", "changed before this turn", "Body."))
