@@ -69,6 +69,29 @@ comment.
 Then, and only then, the line for state four — one line, asking for unwritten numbers rather than
 running processes, because nothing outside the session can see them.
 
+## Why it reports state and does not say what to do, for a second reason
+
+The rule names an untracked `.patch` file. The obvious refinement is to test it — `git apply --check
+--reverse`, and if it reverses, the change already landed, so say "already in HEAD" instead. **It does
+not discriminate.** Measured on two real patches in one tree on 2026-10-14: one whose change had just
+been committed, and one serialising live uncommitted work. **Both reverse cleanly**, because
+`--reverse --check` tests the *working tree*, not `HEAD` — so "it reverses" means only "this content is
+present somewhere", the identical signal for landed-and-therefore-stale and for
+serialized-from-an-uncommitted-modification. Those are opposite hazards: the first wants deleting, the
+second is the only copy of unlanded work.
+
+What separates them is the pair, not the patch: are the patch's target files clean? The stale one
+targeted a file with no modification; the live one targeted exactly the two files `git status` reported
+modified. Which is the four-state table's own point — **states two and three travel together, and here
+that is the only thing that tells them apart.**
+
+So the one claim that survives about an untracked patch is the plain one: *this is a serialized change
+living outside git.* A gate that said "commit it" would have been wrong on the stale patch, and a gate
+that said "you have unlanded work" would have been wrong too, because that work had landed twenty
+minutes earlier. State reporting was right for a reason this design did not have to anticipate, which
+is a better argument for it than the deliberately-untracked case it was written for — that one can be
+silenced once, while this one **changes under the gate.**
+
 ## Sequencing
 
 Shipping this now would not take effect. `${CLAUDE_PLUGIN_ROOT}` is resolved once per process, so the
