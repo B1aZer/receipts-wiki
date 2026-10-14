@@ -99,23 +99,31 @@ which no hook binds, and is not a target either.
 ⭐ **What survives an in-place code update is exactly what is re-resolved at use time; what breaks is
 everything captured at start.** The two facts this route rests on are the two sides of that sentence: a
 fresh `python3` per hook invocation re-resolves the *code* (so a patch lands), and `${CLAUDE_PLUGIN_ROOT}`
-is captured once per process (so an install does not). Python's own `importlib.reload` documentation states
-the same thing as library behaviour — *"Other references to the old objects are not rebound to refer to the
-new objects"*, and instances *"continue to use the old class definition."*
+is captured once per process (so an install does not). Python's `importlib.reload` is documented to behave the
+same way: references held to the old objects are not rebound to the new ones, and existing instances keep
+the old class definition. (Characterised from that documentation, not quoted from a fetched copy.)
 
-⚠️ **And the production failure that makes the liveness check the load-bearing half, not the belt-and-braces
-one.** Unicorn's `USR2` restart kept loading the *old* release because the process had `chdir`-ed at first
-start to the path returned by `` /bin/sh -c pwd ``, which resolved to the real release directory rather than
-to the `current` symlink. **Every file was correct and a hash check would have matched, while the running
-process still executed old code.** So: *a process that resolves a stable path once, at start, is pinned
-exactly as if the stable path never existed — therefore verification must read what the running process
-RESOLVED, never that the path is correct.* An md5 match proves the file arrived; only a behavioural check
-proves the hook executes it. (Surveyed independently by `unrekt-84`; the maintainer's own diagnosis on the
-unicorn mailing list.)
+⚠️ **And a reported failure of exactly this shape, which is why the behavioural check is the load-bearing
+half rather than belt-and-braces.** A Unicorn `USR2` restart is reported to have kept loading the *old*
+release, the process having resolved its working directory once at first start to the real release path
+rather than to the `current` symlink. **Every file was correct and a hash check would have matched, while
+the running process still executed old code.** So: *a process that resolves a path once, at start, is
+pinned exactly as if the stable path never existed — therefore verification must read what the running
+process RESOLVED, never that the path is correct.* An md5 match proves the file arrived; only a behavioural
+check proves the hook executes it.
 
-Related, for the retention question rather than for today: PM2 raises `ENOENT` from `process.cwd()` once
-pruning deletes the release a process started in. **How long old trees are kept is part of the design, not
-cleanup** — which is a second reason the ten stale trees here are patched rather than removed.
+Reported likewise, for the retention question rather than for this patch: PM2 raising `ENOENT` from
+`process.cwd()` once pruning deletes the release a process started in. **How long old trees are kept is
+part of the design, not cleanup** — a second reason the ten stale trees here are patched rather than
+removed.
+
+⚠️ **Provenance of those two cases, stated because this document's whole purpose is provenance.** They
+reached this file through a research survey by another session, and **the primary sources were not read by
+anyone in that chain** — an earlier draft of this file credited one of them to a maintainer's diagnosis on
+a named mailing list, which claimed more than was established. They are kept as *reported* cases, and
+**nothing here rests on them**: the mechanism was established locally, by measuring that each hook
+invocation re-reads the script from the bound path while `${CLAUDE_PLUGIN_ROOT}` is captured once per
+process. A citation's label must say whether the source was read; these say so.
 
 ## Conditions this record exists to satisfy
 

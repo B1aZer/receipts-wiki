@@ -53,9 +53,9 @@ afterwards. Acting on a session is the part that is not yours.** Identify builds
 by version string: `0.4.1-dev.1` was set in the commit *before* the leak fix and never bumped, so the
 leaking and fixed builds report it identically.
 
-⚠️ **An empty target set is a STOP condition, never a wildcard.** Google's decommission workflow was given
-no machines and *"the empty set was used as a special value, interpreted to mean 'everything'"* — it
-erased nearly every machine they had. A refresh tool over a glob is exactly that shape. If the target list
+⚠️ **An empty target set is a STOP condition, never a wildcard.** A decommission workflow is reported to
+have been given no machines, with the empty set treated as a special value meaning *everything* — erasing
+nearly the whole fleet. (Reported, relayed; primary not read here, and the wording is not a quotation.) A refresh tool over a glob is exactly that shape. If the target list
 is empty, something upstream is wrong: stop and find out what. Alongside it: sanity-check the input,
 rate-limit the work, make every step idempotent, and stop after repeated failure instead of continuing.
 
@@ -112,10 +112,11 @@ Say plainly that the session is denied this write and is not going to attempt it
 Hashes first: every target against the value the record committed to in advance, and a target still
 carrying the old hash means the copy did not reach it — a stop condition, not a retry.
 
-⚠️ **Then prove the running process executes it, because the hash cannot.** Unicorn's `USR2` restart kept
-loading the *old* release: the process had `chdir`-ed at first start to the path returned by
-`` /bin/sh -c pwd ``, which resolved to the real release directory rather than to the `current` symlink.
-**Every file was correct, a hash check would have matched, and the running process still ran old code.**
+⚠️ **Then prove the running process executes it, because the hash cannot.** A Unicorn `USR2` restart is
+reported to have kept loading the *old* release: the process had resolved its working directory once at
+first start, to the real release path rather than to the `current` symlink. **Every file was correct, a
+hash check would have matched, and the running process still ran old code.** (A reported case, relayed from
+a research survey; the primary was not read in that chain. The rule below does not depend on it.)
 So: *a process that resolves a path once, at start, is pinned exactly as if the stable path never existed —
 therefore verification must read what the running process RESOLVED, never that the path is correct.*
 
@@ -146,6 +147,16 @@ to be an untouched neighbouring line, pulled into the diff as *context* because 
 place. A second session's probe was correct on the earlier range only because nothing in it had been edited
 in place — **a probe that is right on a range of pure additions is untested, not validated.** Inject a
 synthetic positive and see it fire before trusting any zero.
+
+## 7c. Label a citation by whether you read it.
+
+⭐ **The remedy for an overstated source is the label, not the claim.** A figure taken from a search
+summary of a primary is usually accurate; what a reader cannot do is tell it apart from one that was
+fetched and read. So write which it is. A survey that labelled summaries as *documented* against named
+primaries produced ~11 such rows out of ~20 — **inside documents written to warn about exactly that**, and
+an earlier version of this skill published one of them as a maintainer's diagnosis on a named mailing list.
+**A cited case that nothing rests on is fine; a cited case whose provenance is overstated spends the credit
+of every properly sourced claim beside it.**
 
 ## 8. Close out.
 
