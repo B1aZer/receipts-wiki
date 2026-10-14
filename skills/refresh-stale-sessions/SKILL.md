@@ -142,6 +142,14 @@ Update the record's status to the measured result and attribute the run to whoev
 session's own output records that its code changed underneath it. The sessions cannot notice; the people
 have to be told.
 
+⚠️ **`claude plugin update` compares VERSION STRINGS, so an install without a version bump is a no-op
+that prints success.** Measured 2026-10-14: ten commits were pushed, the marketplace clone advanced to
+them, `claude plugin update` answered *"already at the latest version (0.4.1-dev.1)"*, and the install
+record still carried the previous `gitCommitSha`. **Bump the version in `.claude-plugin/plugin.json`
+before installing, and confirm the install by `gitCommitSha` against the commit you pushed — never by the
+version string and never by the updater's own message.** This is the same defect as a leaking build and a
+fixed build reporting the same version, one layer up in the tooling.
+
 Then: the trees are patched, not installed. **Install the fix so new sessions get it, and treat making the
 stale trees byte-identical as hygiene at each session's next restart — no longer remediation, because the
 defect is already closed in them.**
