@@ -22,7 +22,6 @@ from . import changes, config, gitlog, indexer, state
 LINK = re.compile(r"\[\[([^\]\n]+)\]\]")
 MAX_LINES = 5
 MAX_COMMITS = 60
-QUOTE = 90
 
 # A note this session actually read outranks a cursor it was merely shown at start, which outranks a
 # note reached by one hop. The tier decides both the order and what the line says about why it is here.
@@ -136,10 +135,14 @@ def render(rows):
         if not fresh:
             continue
         seen.update(rel for rel, _ in fresh)
-        why = row.get("why") or {}
+        # No reason is quoted here, deliberately. The only source for one is the conversation
+        # archive, and both docs/comparison.md and PLAN.md section 6 promise archived history is
+        # never injected automatically. This line used to quote ANOTHER session's user turn out of
+        # that archive, which made a published promise false in shipped code. To give the line a
+        # why again, record the reason at write time in the plugin's own metadata; do not read it
+        # back out of the archive.
         groups.append({"row": row, "hits": fresh,
-                       "tier": min(TIERS[how] for _, how in fresh),
-                       "reason": why.get("prompt") or why.get("result")})
+                       "tier": min(TIERS[how] for _, how in fresh)})
     groups.sort(key=lambda g: (g["tier"], -(g["row"]["time"].timestamp() if g["row"]["time"] else 0)))
 
     lines = []
@@ -147,14 +150,13 @@ def render(rows):
         row, hits = group["row"], group["hits"]
         names = [_label(rel, row["by_rel"]) for rel, _ in hits]
         who = "another session" if row["session"] else f"outside a session ({row['agent'] or 'unknown agent'})"
-        tail = f': "{changes._one_line(group["reason"], QUOTE)}"' if group["reason"] else " (no reason recorded)"
         mark = MARKS[group["tier"]]
         if len(names) == 1:
             head = f"- {names[0]} changed"
         else:
             shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
             head = f"- {len(names)} notes changed ({shown})"
-        lines.append(f"{head} {_ago(row['time'])} by {who}{mark}{tail}")
+        lines.append(f"{head} {_ago(row['time'])} by {who}{mark}")
     if not lines:
         return ""
     dropped = len(groups) - len(lines)
@@ -164,11 +166,18 @@ def render(rows):
             + "\nRe-read what you are relying on before you use it.")
 
 
-def last_reasons(home, rels, scan=250):
-    """For each rel, when it last changed and why: {rel: {"time", "reason"}}.
+def last_moved(home, rels, scan=250):
+    """For each rel, when it last changed: {rel: {"time"}}.
 
-    One pass over recent history rather than a git log per note, and the archive of each session involved is
-    parsed once. A cursor that has not changed within `scan` commits is simply absent.
+    One pass over recent history rather than a git log per note. A cursor that has not changed within
+    `scan` commits is simply absent.
+
+    This used to return a "reason" as well, quoted out of the conversation archive of whichever session
+    last moved the cursor -- so a new session opened with another conversation's user turns in its
+    context. docs/comparison.md and PLAN.md section 6 both promise that does not happen. The time is
+    kept because it comes from git, which is this plugin's own record; the quote is not, and no
+    archived text is read here any more. A side effect: the archive of every session involved used to
+    be parsed on every session start, and now none is.
     """
     newest = {}
     for row in changes.commits(home, limit=scan):
@@ -177,15 +186,7 @@ def last_reasons(home, rels, scan=250):
                 newest[rel] = row
         if len(newest) == len(rels):
             break
-    cache, out = {}, {}
-    for rel, row in newest.items():
-        session = row["session"]
-        if session and session not in cache:
-            cache[session] = changes.archive_entries(home, session)
-        why = changes.reason(cache.get(session) or [], row["turn"], row["time"]) if session else None
-        why = why or {}
-        out[rel] = {"time": row["time"], "reason": why.get("prompt") or why.get("result")}
-    return out
+    return {rel: {"time": row["time"]} for rel, row in newest.items()}
 
 
 def notice(home, session, data):

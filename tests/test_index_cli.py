@@ -2,10 +2,15 @@
 import json
 import os
 import subprocess
+import sys
 import unittest
+from pathlib import Path
 
 from test_hooks import RW, HookTestCase, note
 from test_session import BASE
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from rwlib import config  # noqa: E402
 
 
 class IndexTests(HookTestCase):
@@ -57,7 +62,43 @@ class IndexTests(HookTestCase):
         self.assertIn("## Areas", root)
         self.assertIn("- [api](index-api.md): 54 notes", root)
         self.assertNotIn("note_1.md", root)
-        self.assertLessEqual(root.count("\n"), 150)
+        # The generated block is what the line budget bounds; prose the author adds around it is theirs.
+        block = root.split(config.BLOCK_START)[1].split(config.BLOCK_END)[0]
+        self.assertLessEqual(block.count("\n"), 150)
+
+    def test_an_over_budget_root_reports_degrading_instead_of_doing_it_silently(self):
+        """It degraded in silence, so a home sat in the short form with nobody told.
+
+        The area-index branch twelve lines up had warned all along; this one did not, which is why it
+        reads as an oversight rather than a decision. Measured on the author's own home: over budget,
+        already degraded, still over budget after degrading, and never once reported.
+        """
+        for index in range(160):
+            area = ("api", "infra", "tooling")[index % 3]
+            text = note(f"note-{index}", f"a description long enough to fill the budget, number {index}",
+                        "Body.").replace("area: api", f"area: {area}")
+            (self.home / "memory" / f"note_{index}.md").write_text(text)
+        out = subprocess.run(["python3", str(RW), "build-index", "--no-commit"],
+                             capture_output=True, text=True, env=self.env(), check=True)
+        self.assertIn("area indexes instead", out.stdout)
+        self.assertIn("## Areas", (self.home / "memory" / "MEMORY.md").read_text())
+
+    def test_authored_prose_alone_does_not_degrade_the_generated_block(self):
+        """A 200-line hand-written map is not a reason to stop listing notes.
+
+        The budget used to count the whole file's lines, so an author whose map ran long got the short
+        area list and no note pointers, with nothing said about why.
+        """
+        (self.home / "memory" / "MEMORY.md").write_text("# Memory map\n" + "- a hand-written pointer\n" * 200)
+        for index in range(5):
+            (self.home / "memory" / f"note_{index}.md").write_text(note(f"note-{index}", f"number {index}", "Body."))
+        out = subprocess.run(["python3", str(RW), "build-index", "--no-commit"],
+                             capture_output=True, text=True, env=self.env(), check=True)
+        root = (self.home / "memory" / "MEMORY.md").read_text()
+        self.assertIn("note_0.md", root)
+        self.assertNotIn("## Areas", root)
+        self.assertIn("a hand-written pointer", root)
+        self.assertNotIn("area indexes instead", out.stdout)
 
     def test_retired_note_leaves_index_and_hand_written_root_text_survives(self):
         (self.home / "memory" / "MEMORY.md").write_text("# Memory map\n\nHand-written line.\n")

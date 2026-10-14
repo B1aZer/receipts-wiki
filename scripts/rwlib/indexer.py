@@ -193,7 +193,20 @@ def _block(cursors, body_lines):
 
 
 def within_budget(text):
+    """Whether a fully generated index file fits. Every line is one note, so both limits measure it."""
     return text.count("\n") <= MAX_LINES and len(text.encode("utf-8")) <= MAX_BYTES
+
+
+def root_within_budget(text, block):
+    """MEMORY.md: lines bound the generated BLOCK, bytes bound the WHOLE FILE.
+
+    The whole file's line count used to decide this, which let prose the author wrote OUTSIDE the
+    block force the generated list to degrade to area indexes -- their map is theirs to write, and a
+    paragraph they wrapped at 80 columns is not a reason to stop listing their notes. The block's own
+    lines still count, because there a line is one note and this file is loaded into every session.
+    Bytes stay whole-file, because bytes are what a context window actually pays.
+    """
+    return block.count("\n") <= MAX_LINES and len(text.encode("utf-8")) <= MAX_BYTES
 
 
 def audit(home):
@@ -280,9 +293,21 @@ def build(home, include=None):
 
     root = memory / "MEMORY.md"
     current = root.read_text(encoding="utf-8", errors="replace") if root.exists() else "# Memory map\n"
-    updated = _splice(current, _block(cursors, render_notes(groups)))
-    if not within_budget(updated):
-        updated = _splice(current, _block(cursors, render_areas({area: len(items) for area, items in groups.items()})))
+    full = _block(cursors, render_notes(groups))
+    updated = _splice(current, full)
+    if not root_within_budget(updated, full):
+        # Degrading is by design; doing it in silence was not. The area-index branch above warns when it
+        # goes over budget and this branch did not, so a home could sit degraded indefinitely with nobody
+        # told -- which is what the author's own home was doing when this was found: over budget, already
+        # degraded, still over budget after degrading, and never once reported.
+        short = _block(cursors, render_areas({area: len(items) for area, items in groups.items()}))
+        updated = _splice(current, short)
+        warnings.append(f"memory/MEMORY.md did not fit the {MAX_LINES}-line / {MAX_BYTES}-byte budget with "
+                        f"every note listed, so the generated block lists the {len(groups)} area indexes instead")
+        if not root_within_budget(updated, short):
+            warnings.append(f"memory/MEMORY.md is {updated.count(chr(10))} lines / {len(updated.encode('utf-8'))} "
+                            f"bytes even listing only the area indexes, over the {MAX_BYTES}-byte budget; nothing "
+                            f"the generator can drop will bring this under, so cut prose outside the block")
     if _write_if_changed(root, updated):
         changed.append("memory/MEMORY.md")
     return changed, warnings

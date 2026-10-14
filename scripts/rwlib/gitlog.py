@@ -76,6 +76,21 @@ def head_content(home, rel):
     return result.stdout if result.returncode == 0 else None
 
 
+def last_session(home, rel):
+    """The Session trailer of the last commit to touch rel, or None.
+
+    Every session commits under the same git identity, so the author field cannot say which session
+    wrote a file; this trailer is the only per-session signal the history carries.
+    """
+    result = git(home, "log", "-1", "--format=%B", "--", rel)
+    if result.returncode != 0:
+        return None
+    for line in result.stdout.splitlines():
+        if line.startswith("Session:"):
+            return line.split(":", 1)[1].strip() or None
+    return None
+
+
 def tracked(home):
     return {line for line in git(home, "ls-files", "--", *config.VERSIONED).stdout.splitlines() if line}
 

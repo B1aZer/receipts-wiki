@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import (actions, archive, changes, checks, config, frontmatter, gitlog, indexer, related, secrets,
+from . import (actions, archive, checks, config, frontmatter, gitlog, indexer, related, secrets,
                state, topics, turns, warm, watch)
 
 NO_HOME = ("receipts-wiki is installed but there is no memory home at {home}. "
@@ -107,7 +107,8 @@ def hook_gate(payload):
     if current is not None:
         seen = state.load(payload.get("session_id"))["reads"].get(rel)
         if seen and seen != current:
-            reasons.append("the file changed after this session read it; read it again and decide whether your change still applies")
+            reasons.append(f"the file changed after this session read it{_who_changed(rel)}; read it again "
+                           "and decide whether your change still applies")
 
     if reasons:
         _emit({"hookSpecificOutput": {
@@ -115,6 +116,26 @@ def hook_gate(payload):
             "permissionDecision": "deny",
             "permissionDecisionReason": f"receipts-wiki blocked this write to {rel}: " + "; ".join(reasons) + ".",
         }})
+
+
+def _who_changed(rel):
+    """Who the change belongs to, as a phrase for the write-gate rejection, or "" when unknown.
+
+    Only a COMMITTED change can be attributed. If the file on disk differs from HEAD the change came
+    from a session that has not committed yet, and naming the previous committer would blame the wrong
+    session -- so that case says so instead of guessing. The git author cannot be used either: every
+    session commits under the same identity, which is why the Session trailer exists.
+    """
+    home = config.home()
+    try:
+        on_disk = (Path(home) / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    head = gitlog.head_content(home, rel)
+    if head is None or head != on_disk:
+        return " by a session that has not committed it yet"
+    session = gitlog.last_session(home, rel)
+    return f" in a commit from session {session[:8]}" if session else ""
 
 
 def _rewrites_history(sub, args):
@@ -444,9 +465,11 @@ def area_index_for(home, cwd):
 def _cursor_pointers(home, limit=8):
     """One line per active cursor note, so a new session opens the right one instead of re-deriving state.
 
-    Each line also says when the cursor last moved and why, quoted from the conversation that moved it. The
-    description alone says where the work stands; the reason says where it came from, which is the difference
-    between a position and a direction (PLAN-log-first §3.5, §3.7).
+    Each line also says when the cursor last moved. It used to say why, quoted from the conversation that
+    moved it -- which was another session's user turn pulled out of the archive, and the thing section 6
+    and docs/comparison.md promise never happens automatically. The description says where the work
+    stands and the timestamp says how stale that is; "where it came from" has to be earned without
+    reading anyone's transcript (PLAN-log-first §3.5, §3.7).
     """
     try:
         cursors = [item for item in indexer.notes(home) if item["type"] == "cursor" and item["status"] != "retired"]
@@ -455,15 +478,15 @@ def _cursor_pointers(home, limit=8):
     cursors = sorted(cursors, key=indexer.by_priority)[:limit]
     rels = {f"memory/{item['file']}": item for item in cursors}
     try:
-        moved = watch.last_reasons(home, set(rels))
+        moved = watch.last_moved(home, set(rels))
     except OSError:
         moved = {}
     lines = []
     for rel, item in rels.items():
         line = f"- {item['name']}: {item['description']}"
         last = moved.get(rel) or {}
-        if last.get("reason"):
-            line += f"  [moved {watch._ago(last['time'])}: \"{changes._one_line(last['reason'], 60)}\"]"
+        if last.get("time"):
+            line += f"  [moved {watch._ago(last['time'])}]"
         lines.append(line)
     return "\n".join(lines)
 

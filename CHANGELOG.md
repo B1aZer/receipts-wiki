@@ -4,6 +4,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **The cross-session notice and the session-start cursor block no longer quote another conversation's user turn.** `docs/comparison.md` and `docs/PLAN.md` section 6 both say archived history is never injected automatically. Two code paths did exactly that: `watch.render()` ended each notice line with the prompt that caused the change, and `watch.last_reasons()` fed the same quote into the session-start cursor block, both read out of the *other* session's conversation archive. So a session opened, or took its next prompt, with turns its user had typed into a different conversation — a promise this project publishes, false in shipped code since the notice was written.
+
+  Found while auditing a four-session night, and the evidence arrived by itself: three turns from other sessions' archives reached the auditing session as hook context — a short approval, an instruction to commit a baseline, and a request to authorize further work. ⚠️ **The third read as authorization to ship, in a session that was only investigating the mechanism.** They are paraphrased here on purpose: a changelog entry for a leak should not be the leak's last copy. ⚠️ **The second site was missed by that audit and found by a test asserting the quote as a feature**, so the fix is two sites, not the one the audit named.
+
+  The timestamp stays (`[moved 2h ago]`), because git is this plugin's own record. To give the line a reason again, record it at write time in the plugin's own metadata; do not read it back out of a transcript. A side effect worth having: the archive of every session that had touched a listed cursor was parsed on every session start, and now none is.
+
+- **`memory/MEMORY.md` says when it degrades.** Once the generated block will not fit, it lists area indexes instead of notes — by design, and in total silence. The area-index branch twelve lines above has warned all along, which is what makes this an oversight rather than a decision. Measured on the author's home: over budget, already degraded, **still** over budget after degrading, and never once reported, so the file Claude Code loads into every session had been quietly short of its note list for an unknown length of time.
+
+- **The line budget bounds the generated block; the byte budget bounds the whole file.** It was the whole file's line count, so prose the author wrote *outside* the block could force the note list to degrade — a map wrapped at 80 columns cost them their pointers. Bytes stay whole-file, because bytes are what a context window pays. ⚠️ This is a correction: the audit specified "byte-only budget for authored files", and two existing tests caught that dropping the line check lets the block list 160 notes on 160 lines, inside 17 KB and far past what the limit exists to bound.
+
+- **`cursor-not-updated` only fires for a cursor in the changed note's own area.** The nudge was never noisy — 0.20 notices per edit on the author's home — it was aimed wrong: a cursor is the most heavily linked kind of note there is, so matching on the wikilink alone points at every workstream that ever mentioned the note rather than the one whose state just moved. Same precedent as `watch.focus()`, which refuses to hop through cursors because they filled four of five lines from one unrelated commit (measured 2026-09-29).
+
+- **A refused stale write names the session that made the change**, instead of saying only that the file moved. Attribution is limited to what can be proven: if the file on disk differs from `HEAD` the change belongs to a session that has not committed yet, and the message says that rather than naming the previous committer. The git author cannot be used — every session commits under the same identity, which is why the `Session` trailer exists (new `gitlog.last_session`).
+
 ### Added
 
 - `evals/dependency/backtest.py`: what dependency invalidation is actually worth, measured from a memory home's own git history with no model calls. For every `fact.updated` event, the notes declaring a dependency on the updated note are the candidates, and the test is whether a later commit changed a line in them mentioning it. A rate alone says nothing, since a note edited often churns anyway, so the number is the lift over a placebo — same pairs, same window length, start time moved to somewhere no event occurred.

@@ -169,8 +169,10 @@ class WatchTestCase(HookTestCase):
 
     # -- the session-start cursor block ------------------------------------
 
-    def test_session_start_says_when_each_cursor_last_moved_and_why(self):
-        """The reason is quoted from the conversation that moved the cursor, so a transcript is needed."""
+    def test_session_start_says_when_each_cursor_last_moved_and_never_quotes_the_archive(self):
+        """It used to quote the prompt that moved the cursor -- another conversation's user turn, pulled
+        from the archive and injected into this session, which docs/comparison.md and PLAN.md section 6
+        both promise never happens. The timestamp comes from git and stays; the quote is gone."""
         path = self.tmp / "t.jsonl"
         path.write_text("\n".join(json.dumps(r) for r in [
             {"type": "user", "promptId": "t1", "timestamp": ts(10),
@@ -189,7 +191,39 @@ class WatchTestCase(HookTestCase):
         text = output["hookSpecificOutput"]["additionalContext"]
         self.assertIn("cursor-work: step two", text)
         self.assertIn("[moved", text)
-        self.assertIn("move the work cursor to step two", text)
+        self.assertNotIn("move the work cursor to step two", text)
+
+    def test_the_notice_never_quotes_the_archive_of_the_session_that_wrote(self):
+        """docs/PLAN-multi-session.md item 1, the first of its two sites.
+
+        This line used to end with the OTHER session's user prompt, read out of its conversation
+        archive -- so a session opened with turns its user had typed into a different conversation,
+        which is exactly what docs/comparison.md and PLAN.md section 6 promise does not happen. The
+        transcript here is deliberately rich enough that a reason WOULD have been found.
+        """
+        path = self.tmp / "t.jsonl"
+        path.write_text("\n".join(json.dumps(r) for r in [
+            {"type": "user", "promptId": "t2", "timestamp": ts(10),
+             "message": {"role": "user", "content": "rewrite the shared note, it is wrong"}},
+            {"type": "assistant", "timestamp": ts(9),
+             "message": {"role": "assistant", "content": [{"type": "text", "text": "Rewritten."}]}},
+        ]) + "\n")
+        self.write_and_capture("memory/shared.md", note("shared", "a fact", "first"), session="b", turn="t1")
+        self.read_note("memory/shared.md", "a")
+        self.notice_for("a")
+        second = note("shared", "a fact", "second")
+        (self.home / "memory/shared.md").write_text(second)
+        self.hook("capture", {**self.payload("Write", self.home / "memory/shared.md",
+                                             session="b", turn="t2", content=second),
+                              "transcript_path": str(path)})
+        self.hook("stop", {"session_id": "b", "prompt_id": "t2", "cwd": "/work/api",
+                           "transcript_path": str(path)})
+        text = self.notice_for("a")
+        self.assertIn("shared changed", text)
+        self.assertIn("another session", text)
+        self.assertNotIn("rewrite the shared note", text)
+        # Nor the stand-in it used when no reason was found: there is no reason field to be empty now.
+        self.assertNotIn("no reason recorded", text)
 
     def test_a_cursor_with_no_recorded_reason_still_lists_its_description(self):
         (self.home / "memory" / "cursor_work.md").write_text(cursor("cursor-work", "step one", "body"))

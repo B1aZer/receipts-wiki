@@ -289,3 +289,42 @@ censored version of the same comparison still does — because every pair has a 
 2,034, since acquiring the link is itself a change to the dependent's text about the note. The
 before-window measures link creation. Any future attempt at this will reach for that comparison
 first.
+
+## 12. Queued 2026-10-06 — the stale-cursor nudge, and what would have to be true
+
+Observed, not measured: a GingleIsland session produced seven project commits across one area —
+a measurement harness, a Blender asset generator, a light-rig system, an engine bug fix — and wrote
+zero cursor updates. The area had no cursor note at all. It was written only because the user asked
+"do we write any notes to memory right?" at the end.
+
+The plugin behaved correctly throughout. It blocked two shell writes into the memory home, rejected a
+relative date, warned that a new note shared a topic with an existing one, auto-committed, and
+regenerated the indexes. The `doc-unnamed` hook also fired twice, naming a created doc that no note
+referenced. The agent acknowledged it, acted on the first, and kept coding.
+
+So the gap is not enforcement of *how* memory is written. It is that nothing notices when **state has
+moved and the cursor has not** — and `doc-unnamed` fires on the wrong unit. A doc is an artifact; a
+cursor is the claim about where work stands, and that is what a later session reads first.
+
+**The hypothesis:** an area accumulating project commits with no cursor write is a detectable and
+actionable signal, and nudging on it is worth more than nudging per unnamed doc.
+
+**Measure it before building anything**, the same way §11 did, and from the same free source — the
+memory home's git history plus the project repos':
+
+1. For each area, segment history into sessions (`originSessionId` is in note frontmatter).
+2. For each session, count project commits in the areas it touched, and cursor writes in those areas.
+3. The distribution of "project commits since this area's cursor last changed" is the whole question.
+
+**What would have to be true to build it.** If most sessions already update the cursor, or the
+distribution has no usable threshold — if nudging at 3 commits would fire on most sessions that were
+fine — then it is noise with extra steps and §11's verdict applies again. A threshold is worth having
+only if the sessions above it are mostly ones where the cursor really was stale. That is checkable by
+hand on a sample, since the population is small.
+
+**Suspected confound, from `doc-unnamed`'s own record.** It fired twice and changed behaviour once.
+A nudge that is acknowledged and not acted on looks identical in the data to one never shown. Any
+measurement has to separate "fired" from "the cursor then changed in that session", or it will
+measure the hook's reach rather than its effect.
+
+Not started. No code until the distribution says there is a threshold.

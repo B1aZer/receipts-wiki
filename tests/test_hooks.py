@@ -138,6 +138,33 @@ class GateTests(HookTestCase):
         self.hook("read", self.payload("Read", path))
         self.assertIsNone(self.hook("gate", edit))
 
+    def test_a_stale_write_names_the_session_that_committed_the_change(self):
+        """"Someone changed it" leaves you nothing to do; a session id is something you can go and ask."""
+        self.write_and_capture("memory/a.md", note("a", "cache", "Version one."), session="b", turn="t1")
+        path = self.home / "memory" / "a.md"
+        self.hook("read", self.payload("Read", path))
+        self.write_and_capture("memory/a.md", note("a", "cache", "Version two."), session="b", turn="t2")
+        edit = self.payload("Edit", path, old_string="Version two", new_string="Version three")
+        reason = self.deny_reason(self.hook("gate", edit))
+        self.assertIn("changed after this session read it", reason)
+        self.assertIn("in a commit from session b", reason)
+
+    def test_a_stale_write_does_not_blame_the_last_committer_for_an_uncommitted_change(self):
+        """The attribution is only as good as its evidence.
+
+        A working-tree change belongs to a session that has not committed yet, and naming the previous
+        committer there would pin it on whoever happened to touch the file last -- the misattribution
+        class this whole audit was about. So that case says what it knows and no more.
+        """
+        self.write_and_capture("memory/a.md", note("a", "cache", "Version one."), session="b", turn="t1")
+        path = self.home / "memory" / "a.md"
+        self.hook("read", self.payload("Read", path))
+        path.write_text(note("a", "cache", "Version two, not committed by anyone."))
+        edit = self.payload("Edit", path, old_string="Version two", new_string="Version three")
+        reason = self.deny_reason(self.hook("gate", edit))
+        self.assertIn("has not committed it yet", reason)
+        self.assertNotIn("from session b", reason)
+
     def test_other_session_is_not_affected_by_this_sessions_reads(self):
         path = self.home / "memory" / "a.md"
         path.write_text(note("a", "cache", "Version one."))
@@ -611,8 +638,10 @@ class TurnCheckTests(HookTestCase):
         self.assertEqual(self.notices("t2"), "")
 
     def test_note_missing_from_a_hand_written_index(self):
-        # A full MEMORY.md makes the generated block list areas instead of notes, as in a mature memory home.
-        (self.home / "memory" / "MEMORY.md").write_text("# Memory map\n" + "- pointer\n" * 145)
+        # A full MEMORY.md makes the generated block list areas instead of notes, as in a mature memory
+        # home. Fullness has to come from BYTES: authored lines alone no longer degrade the block, since
+        # the line budget now bounds the generated block rather than the whole file.
+        (self.home / "memory" / "MEMORY.md").write_text("# Memory map\n" + "- pointer with enough text on it to spend bytes\n" * 400)
         (self.home / "memory" / "index-api.md").write_text("# api\n\n- [other](other.md)\n")
         self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Five minutes."))
         text = self.notices("t2")
@@ -621,6 +650,26 @@ class TurnCheckTests(HookTestCase):
         self.write("memory/index-api.md", "# api\n\n- [ttl](./project_ttl.md)\n", turn="t2")
         self.write_and_capture("memory/project_ttl.md", note("quotes-cache-ttl", "ttl", "Six minutes."), turn="t2")
         self.assertEqual(self.notices("t3"), "")
+
+    def test_cursor_nudge_fires_for_a_cursor_in_the_notes_own_area(self):
+        self.write_and_capture("memory/cursor_work.md",
+                               cursor("cursor-work", "step one", "see [[quotes-cache-ttl]]"), turn="t1")
+        self.write_and_capture("memory/project_ttl.md",
+                               note("quotes-cache-ttl", "ttl", "Five minutes."), turn="t2")
+        self.assertIn("cursor-not-updated", self.notices("t3"))
+
+    def test_cursor_nudge_stays_quiet_for_a_cursor_in_another_area(self):
+        """The nudge was never noisy -- 0.20 notices per edit on the author's home. It was AIMED wrong.
+
+        A cursor is the most heavily linked kind of note there is, so matching on the link alone points
+        at every workstream that ever mentioned the note instead of the one whose state just moved. Same
+        precedent as watch.focus(), which refuses to hop through cursors for the same reason.
+        """
+        infra = cursor("cursor-infra", "other work", "see [[quotes-cache-ttl]]").replace("area: api", "area: infra")
+        self.write_and_capture("memory/cursor_infra.md", infra, turn="t1")
+        self.write_and_capture("memory/project_ttl.md",
+                               note("quotes-cache-ttl", "ttl", "Five minutes."), turn="t2")
+        self.assertNotIn("cursor-not-updated", self.notices("t3"))
 
     def test_decision_note_must_name_what_it_rejected_and_where(self):
         """A decision note exists to stop an option being re-litigated; without the loser and the

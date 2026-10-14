@@ -253,6 +253,13 @@ def turn_notices(home, rels):
         if item["type"] == "cursor":
             continue
         for cursor in cursors:
+            # Only the cursor for this note's own area is nudged. A cursor is the most heavily linked
+            # kind of note in a home, so matching on the link alone points at every workstream that
+            # ever mentioned the note rather than the one whose state just moved -- measured at 0.20
+            # notices per edit, which is quiet enough, and aimed at the wrong cursor often enough to
+            # teach people to ignore it. Same precedent as watch.focus()'s refusal to hop via cursors.
+            if cursor["area"] != item["area"]:
+                continue
             linked = {gitlog.slug(link) for link in WIKILINK.findall(cursor["text"])}
             if f"memory/{cursor['file']}" not in rels and linked & _slugs(item):
                 notices.append(f"cursor-not-updated: you changed {rel}, which cursor note memory/{cursor['file']} points to, "
