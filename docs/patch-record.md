@@ -44,7 +44,7 @@ against a dead session-start hook is not a close call.
 | field | value |
 |---|---|
 | source file for copy 2 | `~/Sites/unrekt/oss/receipts-wiki/scripts/rwlib/watch.py` |
-| source commit | `f8488ec` |
+| source commit | `5d93108` — the md5 below is the identity the copy is verified against; a commit cannot name itself and survive an amend |
 | intended md5, all ten targets | `8a388570e4eae33c01b909a28518be75` |
 | targets | the same ten rows below |
 | date recorded | 2026-10-14 |
