@@ -135,6 +135,18 @@ sessions hit that in one day. So:
   nothing. A synthetic canary costs none of the user's own turns.
 - If a check returns the same answer for the subject and the control, it is not measuring the subject.
 
+## 7b. Run each gate BEFORE the act it gates, in its own step.
+
+⭐ **A gate whose result you read afterwards is not a gate, and no better check fixes that — it is
+sequencing.** On 2026-10-14 the pre-push probe was run in the same command block as the push, so its output
+arrived after the push had already happened. The outcome was clean, which is luck and not a defence.
+
+⚠️ **And when a probe reads a diff, count ADDED lines only.** The same probe reported a hit that turned out
+to be an untouched neighbouring line, pulled into the diff as *context* because a manifest was edited in
+place. A second session's probe was correct on the earlier range only because nothing in it had been edited
+in place — **a probe that is right on a range of pure additions is untested, not validated.** Inject a
+synthetic positive and see it fire before trusting any zero.
+
 ## 8. Close out.
 
 Update the record's status to the measured result and attribute the run to whoever performed it.
