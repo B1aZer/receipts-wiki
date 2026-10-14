@@ -205,3 +205,15 @@ def notice(home, session, data):
         rows = []
     data["seen_commit"] = current
     return render(rows)
+
+# Kept under the previous name so this file can be copied into an OLDER install tree whose `hooks.py`
+# still calls it. That is not hypothetical: on 2026-10-14 this file was copied over ten cached trees to
+# stop a live context leak without restarting the sessions bound to them, and the rename broke their
+# SessionStart hook -- `module 'rwlib.watch' has no attribute 'last_reasons'` -- because the old
+# `_cursor_pointers` calls the old name. The alias is safe rather than a revert: it returns times only,
+# so an old caller's `last.get("reason")` is falsy and no quote is rendered.
+#
+# The general rule, which cost a regression to learn: a file that may be copied into an older tree has to
+# satisfy the OLD callers, and checking that the new file can find what it needs in the old tree is only
+# half the question -- the other half is whether the old tree can still find what it asks for here.
+last_reasons = last_moved

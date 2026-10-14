@@ -6,18 +6,52 @@ file the install record claims a session is running a commit whose files it does
 this project issues rests on that field, which is the whole reason the order is fixed: the record first,
 then the copy, then the verification against the record.
 
-**Status: nothing has been patched. Approved, then BLOCKED.** The owner approved the patch on
-2026-10-14 with its three costs stated. ⚠️ **The copy is refused by Claude Code's auto-mode classifier as
-"Modify Shared Resources"**, and no attempt was made to perform the same write through another tool: the
-denial is about the target, not the tool, so routing around it would defeat its intent. The session can
-read the cache but not write it. **The patch therefore needs an operator**, exactly as the restart route
-did — which is itself a finding: both remediations are blocked at the same boundary, and the plugin's own
-session cannot repair the plugin.
+**Status: copy 1 of 2 DONE and verified. Copy 2 outstanding.**
 
-**Pre-flight re-verified at the time of the attempt, and it passes:** the source file hashes
-`864112d320f46bf5a506ae3964a7a4ee`, equal to the value this record committed to, and **all ten targets
-still hash `9d842ec571af8599783392a02f7480bb`** — so nothing changed under us since this record was
-committed, and the stop condition below does not apply.
+**Copy 1** — the owner ran it on 2026-10-14 after approving it with its three costs stated; the session
+that wrote this record is denied the write itself ("Modify Shared Resources" from the auto-mode
+classifier) and did not route around it. **Verified independently afterwards, read-only: 10 of 10 targets
+hash `864112d320f46bf5a506ae3964a7a4ee`, the value this record committed to BEFORE the copy; 0 mismatched;
+0 still carrying the leaky `9d842ec571af8599783392a02f7480bb`.** The live leak is closed in all ten.
+
+⚠️ **Copy 1 also broke SessionStart in all ten trees, and that is a defect introduced by this
+remediation.** The fixed `watch.py` renamed `last_reasons` to `last_moved`; the ten trees keep their own
+older `hooks.py`, whose `_cursor_pointers` still calls the old name. Reproduced against a patched tree
+with the fixed tree as a working control:
+
+```
+receipts-wiki session-start hook failed: module 'rwlib.watch' has no attribute 'last_reasons'
+```
+
+**Why the pre-flight missed it:** the compatibility check ran *new file → old tree* (can the new
+`watch.py` find what it needs?) and never *old tree → new file* (can the old callers find what they ask
+for?). One direction of a two-directional question. The smoke test compounded it by exercising only
+`hook prompt`, which never reaches the cursor-pointer path.
+
+**Who it reaches, which is why it is urgent rather than cosmetic.** A *restart* is safe: it rebinds to the
+installed tree, where both files match. But **SessionStart also re-fires on compaction and on `/clear`**,
+against the session's existing bound tree — so any still-running session on a patched tree that compacts
+or clears **loses its whole memory orientation** (rules, cursor pointers, area index) and continues
+without it, with only a `systemMessage` to say so. Compaction is routine, not a corner case.
+
+**Copy 2 fixes it with an alias, not a revert:** `last_reasons = last_moved` appended to `watch.py`. An
+old caller then gets times only, its `last.get("reason")` is falsy, and no quote is rendered — so the
+leak stays closed and the hook completes. Verified on a copy of a patched tree: hook failures 0, cursor
+line present, quote tails 0. One honest cosmetic loss: the old `hooks.py` prints its `[moved …]` bracket
+only when a reason exists, so those ten trees lose the timestamp from that line. A missing timestamp
+against a dead session-start hook is not a close call.
+
+| field | value |
+|---|---|
+| source file for copy 2 | `~/Sites/unrekt/oss/receipts-wiki/scripts/rwlib/watch.py` |
+| source commit | `f8488ec` |
+| intended md5, all ten targets | `8a388570e4eae33c01b909a28518be75` |
+| targets | the same ten rows below |
+| date recorded | 2026-10-14 |
+
+**Pre-flight for copy 2, to be re-checked at the time:** every target should hash
+`864112d320f46bf5a506ae3964a7a4ee` (the copy-1 result). A target still at
+`9d842ec571af8599783392a02f7480bb` would mean copy 1 did not reach it and is a stop condition.
 
 ## Why
 

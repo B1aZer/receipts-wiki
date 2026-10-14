@@ -261,6 +261,18 @@ class WatchTestCase(HookTestCase):
         self.assertNotIn("MEMORY", text)
         self.assertNotIn("index-api", text)
 
+    def test_the_previous_name_still_resolves_for_an_older_tree(self):
+        """This file gets copied into older install trees to fix a live defect without restarting the
+        sessions bound to them, and their `hooks.py` calls `last_reasons`. The rename broke SessionStart
+        in ten trees on 2026-10-14. Checking that the new file can find what it needs in an old tree is
+        half the question; this is the other half."""
+        import inspect
+        self.assertIs(watch.last_reasons, watch.last_moved)
+        # Safe rather than a revert: the alias must stay quote-free, or restoring the old NAME would
+        # restore the old BEHAVIOUR in exactly the trees that cannot be fixed any other way.
+        body = inspect.getsource(watch.last_moved)
+        self.assertNotIn('why', body)
+        self.assertIn('"time": row["time"]', body)
 
 if __name__ == "__main__":
     unittest.main()
