@@ -221,31 +221,121 @@ def _memory_markers(home):
     return markers
 
 
-def _shell_write_reason(command, home):
-    """How a shell command writes into the memory home, or None. Pattern matching only: a path held in a
-    variable is not seen."""
+def _home_prefixes(home):
+    """Every absolute spelling of the memory home a resolved path might legitimately carry."""
+    out = set()
+    for candidate in (str(home), str(Path(home).expanduser())):
+        out.add(candidate.rstrip("/"))
+        if candidate.startswith("/private/"):
+            out.add(candidate[len("/private"):].rstrip("/"))
+        else:
+            out.add(("/private" + candidate).rstrip("/"))
+    return out
+
+
+def _lands_in(target, here, prefixes):
+    """Does this write target resolve to a path inside the memory home?
+
+    Resolved against `here` -- the directory the command will actually run in -- so a relative target
+    after a `cd` is judged by where it LANDS and not by how it is spelled. No filesystem access: the
+    target usually does not exist yet, and a gate must not depend on whether it does.
+    """
+    text = os.path.expandvars(os.path.expanduser(target.strip().strip("'\"")))
+    if not text or text.startswith("$"):
+        return False    # a path held in a shell variable: unresolvable from the text, see the docstring
+    if not os.path.isabs(text):
+        text = os.path.join(here or "", text)
+    text = os.path.normpath(text).rstrip("/")
+    return any(text == p or text.startswith(p + os.sep) for p in prefixes)
+
+
+# `cd`/`pushd` move the directory for everything after them; `env -C` only for its own command.
+_REDIRECT = re.compile(r"(?<![<0-9&])>{1,2}\|?\s*(?:['\"]([^'\"]+)['\"]|([^\s'\";|&()<>]+))")
+
+
+def _shell_write_reason(command, home, cwd=None):
+    """How a shell command writes into the memory home, or None.
+
+    ⚠️ **This gate judges where a write LANDS, not how the path is spelled**, which is the whole
+    difference between it working and looking like it works. Until 2026-10-15 it required the home's
+    path to appear in the command text and then tested each write target as written -- so
+    `cd <home>/memory && sed -i ... note.md` passed: the marker was there, in the `cd`, and the target
+    `note.md` matched nothing. Probed: `cd`, `cd` via `~`, two-hop `cd`, `pushd`, a subshell and
+    `env -C` all defeated it, for redirects, `tee`, `cp`, `mv`, `sed -i` and `truncate` alike.
+    ⛔ **It stopped the careless path and missed the convenient one** -- a session reaching for a shell
+    edit to save a step is exactly the session that would `cd` first. (Found by `unrekt-84`, relayed by
+    `unrekt-79`. The relayed mechanism was "the path is not in the command"; it is in the command, and
+    the fix follows from the real one: resolve the target, do not search the text.)
+
+    ⚠️ **What a text-reading gate cannot do, stated rather than papered over.** A path computed at
+    runtime -- held in a variable, read from a file, built by a script -- is not visible here and no
+    amount of pattern work makes it visible. `[[feedback-proxy-is-not-the-property]]`: the command text
+    is a proxy for the write, and the two come apart whenever the path is not literal. So this is a
+    courtesy that redirects a session to Write/Edit, and **the detector that cannot be evaded is the
+    catch-up pass**, which sees the file differ from `HEAD` at the next turn boundary and reports it as
+    `external.change` whatever made it. Harden this; rely on that.
+
+    Over-blocks rather than under-blocks in two known places, deliberately: a `cd` inside a subshell is
+    treated as lasting for the rest of the command, and a script whose own text mentions a write is
+    judged by that text. A session told to use Write/Edit has lost one step; a missed write to memory is
+    an unrecorded change to the thing the project exists to keep honest.
+    """
+    prefixes = _home_prefixes(home)
     markers = _memory_markers(home)
-    inside = lambda text: any(marker in text for marker in markers)
-    if not inside(command):
-        return None
-    for match in re.finditer(r"(?<![<0-9&])>{1,2}\|?\s*['\"]?([^\s'\";|&()]+)", command):
-        if inside(match.group(1)):
-            return "redirects output into a file"
-    for match in re.finditer(r"\btee\b([^;|&\n]*)", command):
-        if inside(match.group(1)):
-            return "writes a file with tee"
-    for segment in re.split(r"&&|\|\||[;|\n]", command):
-        words = [w for w in segment.strip().split() if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w)]
-        if not words or not inside(segment):
+    here = cwd or os.getcwd()
+    script_cwd_inside = False
+    for raw in re.split(r"&&|\|\||[;|\n]", command):
+        segment = raw.strip().lstrip("(").rstrip(")").strip()
+        if not segment:
+            continue
+        words = [w for w in segment.split() if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w)]
+        if not words:
             continue
         tool = os.path.basename(words[0])
+        if tool in ("cd", "pushd") and len(words) > 1:
+            moved = os.path.expandvars(os.path.expanduser(words[1].strip("'\"")))
+            here = os.path.normpath(moved if os.path.isabs(moved) else os.path.join(here, moved))
+            continue
+        # `env -C <dir> cmd ...` runs one command elsewhere; judge that command from there.
+        local = here
+        while tool == "env" and len(words) > 2:
+            if words[1] == "-C":
+                local = os.path.normpath(os.path.join(local, os.path.expanduser(words[2].strip("'\""))))
+                words = words[3:]
+            elif words[1].startswith("-C"):
+                local = os.path.normpath(os.path.join(local, os.path.expanduser(words[1][2:].strip("'\""))))
+                words = words[2:]
+            else:
+                break
+            tool = os.path.basename(words[0]) if words else ""
+        if any(_lands_in(m.group(1) or m.group(2) or "", local, prefixes) for m in _REDIRECT.finditer(segment)):
+            return "redirects output into a file"
+        for match in re.finditer(r"\btee\b([^;|&\n]*)", segment):
+            if any(_lands_in(word, local, prefixes) for word in match.group(1).split()):
+                return "writes a file with tee"
         if tool in ("sed", "perl") and re.search(r"\s-[a-zA-Z]*i", segment):
-            return "edits a file in place"
-        if tool in ("rm", "mv", "touch", "truncate", "unlink", "rmdir"):
-            return f"runs {tool} on it"
-        if tool in ("cp", "rsync", "install", "ln") and inside(words[-1]):
-            return f"copies into it with {tool}"
-    if SCRIPT_TOOL.search(command) and SCRIPT_WRITE.search(command):
+            if any(_lands_in(word, local, prefixes) for word in words[1:]):
+                return "edits a file in place"
+        if tool in ("rm", "mv", "touch", "truncate", "unlink", "rmdir", "shred", "chmod", "chown"):
+            if any(_lands_in(word, local, prefixes) for word in words[1:] if not word.startswith("-")):
+                return f"runs {tool} on it"
+        if tool in ("cp", "rsync", "install", "ln") and len(words) > 1:
+            if _lands_in(words[-1], local, prefixes):
+                return f"copies into it with {tool}"
+        if tool == "dd":
+            # Read from the RAW segment: dd's operands are `if=`/`of=`, which the env-assignment filter
+            # above strips as though they were variable assignments. That is why dd passed the first
+            # version of this fix, absolute path and all -- the branch was there and could never fire.
+            for word in segment.split():
+                if word.startswith("of=") and _lands_in(word[3:], local, prefixes):
+                    return "writes a file with dd"
+        if SCRIPT_TOOL.search(segment) and _lands_in(".", local, prefixes):
+            script_cwd_inside = True
+    # A script's own writes are invisible here, so two proxies, each labelled as one: it runs FROM inside
+    # the home (its relative writes land there), or it names the home and a write in the same breath.
+    if SCRIPT_WRITE.search(command) and (script_cwd_inside
+                                         or (SCRIPT_TOOL.search(command)
+                                             and any(marker in command for marker in markers))):
         return "runs a script that writes files"
     return None
 
@@ -254,7 +344,7 @@ def hook_shell(payload):
     """PreToolUse on Bash: refuse shell commands that write into the memory home, and point to Write or Edit."""
     command = _tool_input(payload).get("command") or ""
     home = config.home()
-    how = _shell_write_reason(command, home)
+    how = _shell_write_reason(command, home, cwd=payload.get("cwd"))
     if how:
         _emit({"hookSpecificOutput": {
             "hookEventName": "PreToolUse",

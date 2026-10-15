@@ -239,16 +239,66 @@ class ShellWriteTests(HookTestCase):
             self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
             self.assertIn("Write or Edit tool", output["hookSpecificOutput"]["permissionDecisionReason"])
 
+    def shell_at(self, command, cwd):
+        return self.hook("shell", {"session_id": "s1", "cwd": cwd, "tool_name": "Bash",
+                                   "tool_input": {"command": command}})
+
+    def test_a_cd_does_not_defeat_the_write_gate(self):
+        """The gate used to require the home's path in the command text and then test each write target
+        AS WRITTEN, so moving the path into a `cd` left nothing to match: the marker was present, in the
+        `cd`, and the target was relative. It stopped the careless path and missed the convenient one --
+        a session reaching for a shell edit to save a step is exactly the session that would `cd` first.
+        Found by unrekt-84; the shapes it had not reached are probed here too."""
+        memory = f"{self.home}/memory"
+        for command in (f"cd {memory} && echo x > a.md",
+                        f"cd {memory} && sed -i '' 's/a/b/' a.md",
+                        f"cd {memory} && cp /tmp/draft.md a.md",
+                        f"cd {memory} && mv /tmp/draft.md a.md",
+                        f"cd {memory} && echo x | tee a.md",
+                        f"cd {memory} && truncate -s 0 a.md",
+                        f"cd {self.home} && cd memory && echo x > a.md",
+                        f"pushd {memory} && echo x > a.md",
+                        f"(cd {memory} && echo x > a.md)",
+                        f"env -C {memory} sh -c 'echo x > a.md'",
+                        f"dd if=/dev/null of={memory}/a.md"):
+            output = self.shell(command)
+            self.assertIsNotNone(output, command)
+            self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny", command)
+        # Reading after a cd must stay allowed, or the gate has simply become "any cd into memory".
+        for command in (f"cd {memory} && cat a.md", f"cd {memory} && git status --short",
+                        f"cd {memory} && grep -rn cache ."):
+            self.assertIsNone(self.shell(command), command)
+
+    def test_a_relative_write_is_judged_from_the_sessions_own_directory(self):
+        """Nothing in the command has to mention memory: a session whose working directory IS the memory
+        home writes into it with a bare relative path. The prefilter forwards those payloads because the
+        payload's own cwd field carries the path -- narrowing it to tool_input.command reopens this."""
+        memory = f"{self.home}/memory"
+        blocked = self.shell_at("echo x > a.md", memory)
+        self.assertIsNotNone(blocked, "a relative write from inside the home")
+        self.assertEqual(blocked["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIsNone(self.shell_at("cat a.md", memory), "reading from inside the home")
+        # The same command from outside the home must stay allowed, or this is not measuring the working
+        # directory at all -- it is just blocking the word.
+        self.assertIsNone(self.shell_at("echo x > a.md", "/work/api"))
+
     def test_guard_script_starts_python_only_for_commands_that_mention_memory(self):
         guard = RW.parent / "shell-guard.sh"
-        def run(command):
-            payload = json.dumps({"session_id": "s1", "tool_name": "Bash", "tool_input": {"command": command}})
+        def run(command, cwd="/work/api"):
+            payload = json.dumps({"session_id": "s1", "cwd": cwd, "tool_name": "Bash",
+                                  "tool_input": {"command": command}})
             return subprocess.run(["sh", str(guard)], input=payload, capture_output=True, text=True, env=self.env(), check=False)
         quiet = run("ls -la /tmp")
         self.assertEqual((quiet.returncode, quiet.stdout), (0, ""))
         denied = run(f"python3 - <<'PY'\nopen('{self.home}/memory/MEMORY.md', 'w').write('x')\nPY")
         self.assertEqual(denied.returncode, 0)
         self.assertEqual(json.loads(denied.stdout)["hookSpecificOutput"]["permissionDecision"], "deny")
+        # And a command that mentions memory NOWHERE, from a session whose cwd is the memory home. The
+        # prefilter forwards it only because it matches the whole payload, where the cwd field carries
+        # the path. The script's comment says so; this is what checks it.
+        relative = run("echo x > a.md", cwd=f"{self.home}/memory")
+        self.assertEqual(json.loads(relative.stdout or "{}").get("hookSpecificOutput", {}).get(
+            "permissionDecision"), "deny", "the prefilter must forward a payload whose CWD is the home")
 
     def test_allows_reading_memory_and_unrelated_commands(self):
         memory = f"{self.home}/memory"
