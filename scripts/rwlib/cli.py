@@ -528,3 +528,86 @@ def preamble(home, cwd=None, stable=False):
     sys.stderr.write("# not shown: catch-up commits and the sweep (side effects), and the per-prompt\n"
                      "#            notice of what another session changed (see `rw.py watch`).\n")
     return 0
+
+
+def trees(record=None, cache=None, as_json=False):
+    """Audit every install tree of this plugin against docs/patch-record.md, by content.
+
+    ⚠️ WHY THIS IS NOT A HOOK, which is the finding that produced it. The guard on the prompt path
+    can only ever answer for the tree it is running in, and `config.superseded` shipped in
+    0.4.1-dev.2 -- so the tree it runs in is the installed one, where the answer is "clean". Every
+    other state lives in a tree whose code does not contain the check and never will: a tree still
+    carrying the defect, a tree patched in place to remove it, an older install that was correct
+    while it was current, and a target the record names that has since been pruned from the cache.
+    An in-tree check cannot reach any of them. So the audit that covers all four reads the cache
+    from outside -- the same perimeter the APPLIER has to live outside of, for the same reason.
+
+    It reports and exits non-zero on two states, never silencing either: content no row accounts
+    for, and a row whose target is gone. A recorded target that has vanished is reported rather
+    than skipped because skipping one is how a compatibility gate in this repo produced a false
+    SAFE -- it passed over a module the tree did not have instead of flagging it.
+    """
+    build = config.installed_build(record)
+    if not build:
+        sys.stdout.write("no install record for this plugin; nothing to audit\n")
+        return 0
+    installed = Path(build["path"])
+    root = Path(cache) if cache else installed.parent
+    rec = config.patch_record(installed)
+    rows, unexplained, missing = [], [], []
+    for path in sorted(p for p in root.iterdir() if p.is_dir()) if root.is_dir() else []:
+        patched = config.drift(path, installed_at=build["updated"] if path == installed else None)
+        vouched = rec.get("hashes") or set()
+        changed = [{"rel": f["rel"], "md5": f["md5"],
+                    "written": config._when(f["mtime"]),
+                    "explained": bool(f["md5"] and f["md5"].lower() in vouched)}
+                   for f in patched["files"]]
+        state_name = ("installed" if path == installed
+                      else "superseded" if not changed else "superseded+patched")
+        if patched["whole_tree"]:
+            state_name = "whole-tree drift"
+        row = {"tree": path.name, "state": state_name, "files": patched["population"],
+               "written": config._when(patched["baseline"]) if patched["baseline"] else None,
+               "reason": patched["reason"], "changed": changed}
+        rows.append(row)
+        unexplained.extend((path.name, f) for f in changed if not f["explained"])
+        if patched["whole_tree"]:
+            unexplained.append((path.name, {"rel": "(every file)", "md5": "", "explained": False}))
+    present = {r["tree"] for r in rows}
+    for name in sorted(rec.get("trees") or ()):
+        # Only names that look like a version of this plugin, not the commits and hashes the
+        # document also quotes in backticks.
+        if len(name) > 24 or "." not in name:
+            continue
+        if name not in present:
+            missing.append(name)
+    if as_json:
+        sys.stdout.write(json.dumps({"installed": str(installed), "commit": build["commit"],
+                                     "record": rec.get("path") or None, "trees": rows,
+                                     "unexplained": [n for n, _ in unexplained],
+                                     "recorded_but_missing": missing}, indent=2) + "\n")
+    else:
+        sys.stdout.write(f"installed   {installed.name}  commit {build['commit'][:12] or 'unknown'}  "
+                         f"({build['updated'] or 'unknown'})\n")
+        sys.stdout.write(f"record      {rec.get('path') or 'NONE FOUND -- no content can be accounted for'}\n\n")
+        sys.stdout.write(f"{'tree':16} {'state':20} {'files':>5}  {'written':16} changed in place\n")
+        for row in rows:
+            sys.stdout.write(f"{row['tree']:16} {row['state']:20} {row['files']:>5}  "
+                             f"{row['written'] or row['reason'] or '?':16} "
+                             f"{'-' if not row['changed'] else ''}\n")
+            for f in row["changed"]:
+                mark = "accounted for" if f["explained"] else "** NOT IN THE RECORD **"
+                sys.stdout.write(f"{'':16} {'':20} {'':>5}  {'':16} {f['rel']} "
+                                 f"md5 {f['md5'][:8] or '?'} {f['written']}  {mark}\n")
+        if missing:
+            sys.stdout.write("\n** the record names targets that are no longer in the cache: "
+                             + ", ".join(missing) + "\n"
+                             "   Reported, not skipped: a tree can be pruned while a session is still bound to it,\n"
+                             "   and then its hooks fail outright rather than running old code. Check whether any\n"
+                             "   live session was bound to one before treating this as housekeeping.\n")
+        if unexplained:
+            sys.stdout.write("\n** content no row accounts for: "
+                             + ", ".join(f"{t}:{f['rel']}" for t, f in unexplained) + "\n")
+        if not missing and not unexplained:
+            sys.stdout.write("\nevery tree is either the install or accounted for by the record.\n")
+    return 1 if (missing or unexplained) else 0

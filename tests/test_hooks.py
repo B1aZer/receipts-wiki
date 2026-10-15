@@ -379,6 +379,120 @@ class ShellWriteTests(HookTestCase):
         # First sight has nothing to compare against and must stay silent, like the watch offset.
         self.assertEqual("", config.superseded(seen=None, record=after, root=here))
 
+    def _tree(self, cache, name, written, files=None):
+        """An install tree whose executable files were all written at one moment, as an install does."""
+        import os
+        root = cache / name
+        (root / "scripts" / "rwlib").mkdir(parents=True, exist_ok=True)
+        (root / "hooks").mkdir(exist_ok=True)
+        payload = {"scripts/rw.py": "pass\n", "hooks/hooks.json": "{}\n"}
+        for mod in ("config", "hooks", "watch", "changes", "indexer"):
+            payload["scripts/rwlib/%s.py" % mod] = "# %s\n" % mod
+        payload.update(files or {})
+        for rel, text in payload.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+            os.utime(path, (written, written))
+        return root
+
+    def test_a_tree_patched_in_place_is_told_by_CONTENT_and_not_by_path(self):
+        """The path check gave three different states the same sentence -- a tree still carrying a
+        defect, a tree patched in place to remove it, and an older install that was correct while it
+        was current all read as "older code, restart". And it is blind in the direction that matters
+        from here: a tree patched AT the installed path passes it, which is every session started
+        after this build. The record is what turns the alarm into an answer; it is not what silences
+        it, because the content really does differ from the commit the host recorded."""
+        import os, sys, time
+        sys.path.insert(0, str(RW.parent))
+        from rwlib import config
+        cache = self.tmp / "cache" / "receipts-wiki" / "receipts-wiki"
+        installed_at = time.time() - 7200
+        here = self._tree(cache, "0.4.1-dev.2", installed_at)
+        record = self._record(here, "6bab292" + "0" * 33,
+                              updated=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(installed_at)))
+        # An untouched tree at the installed path must be silent, or nothing below means anything.
+        self.assertEqual("", config.superseded(record=record, root=here))
+
+        patched = here / "scripts" / "rwlib" / "watch.py"
+        patched.write_text("# patched in place\n")
+        os.utime(patched, (installed_at + 3600, installed_at + 3600))
+        import hashlib
+        digest = hashlib.md5(patched.read_bytes()).hexdigest()
+
+        # No record yet: drift is reported, and reported as unaccounted for.
+        unexplained = config.superseded(record=record, root=here)
+        self.assertIn("changed in place", unexplained)
+        self.assertIn("scripts/rwlib/watch.py", unexplained)
+        self.assertIn("no patch record", unexplained)
+
+        # A record that does not name this content must NOT quiet it. This is the false-quiet half:
+        # a record present but silent about a file is the same hazard as no record at all.
+        docs = here / "docs"
+        docs.mkdir()
+        (docs / "patch-record.md").write_text("| target | md5 |\n| x | %s |\n" % ("f" * 32))
+        still = config.superseded(record=record, root=here)
+        self.assertIn("does not account for", still)
+
+        # The recorded hash accounts for it -- and the notice still fires, naming the record.
+        (docs / "patch-record.md").write_text("| target | intended md5 |\n| `0.4.1-dev.2` | `%s` |\n" % digest)
+        answered = config.superseded(record=record, root=here)
+        self.assertIn("vouches for that content", answered)
+        self.assertIn("cite the record rather than the commit", answered)
+        self.assertNotIn("does not account for", answered)
+
+    def test_a_whole_tree_rewritten_leaves_no_outlier_and_is_caught_by_the_install_time(self):
+        """The mtime baseline is the tree's own modal write time, so one file copied in is an
+        outlier -- and replacing EVERY file moves the mode with them, leaving nothing to be an
+        outlier. That blind spot is covered by a second, independent quantity: the install record's
+        own lastUpdated for this root. Without this the detector would be silent in the one case
+        where the most had changed."""
+        import sys, time
+        sys.path.insert(0, str(RW.parent))
+        from rwlib import config
+        cache = self.tmp / "cache" / "receipts-wiki" / "receipts-wiki"
+        installed_at = time.time() - 7200
+        here = self._tree(cache, "0.4.1-dev.2", installed_at)
+        record = self._record(here, "6bab292" + "0" * 33,
+                              updated=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(installed_at)))
+        self.assertEqual("", config.superseded(record=record, root=here))
+        self.assertEqual([], config.drift(here, installed_at=None)["files"])
+
+        self._tree(cache, "0.4.1-dev.2", time.time())  # every file rewritten at once
+        moved = config.drift(here, installed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(installed_at)))
+        self.assertEqual([], moved["files"], "no single file is an outlier, which is the blind spot")
+        self.assertTrue(moved["whole_tree"], "and the install time is what sees it")
+        self.assertIn("every executable file", config.superseded(record=record, root=here))
+
+    def test_the_audit_reports_a_recorded_target_that_is_gone_instead_of_skipping_it(self):
+        """A tree can be pruned while a session is still bound to it, and then its hooks fail
+        outright rather than running old code. Skipping a target the tree does not have is how the
+        graft gate in this repo produced a false SAFE, so the audit exits non-zero on it."""
+        import io, sys, time
+        from contextlib import redirect_stdout
+        sys.path.insert(0, str(RW.parent))
+        from rwlib import cli
+        cache = self.tmp / "cache" / "receipts-wiki" / "receipts-wiki"
+        installed_at = time.time() - 7200
+        here = self._tree(cache, "0.4.1-dev.2", installed_at)
+        record = self._record(here, "6bab292" + "0" * 33,
+                              updated=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(installed_at)))
+        (here / "docs").mkdir()
+        (here / "docs" / "patch-record.md").write_text("| `0.4.0` | `%s` |\n" % ("a" * 32))
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = cli.trees(record=record, cache=cache)
+        self.assertEqual(1, code, "a recorded target that is missing is a finding, not housekeeping")
+        self.assertIn("no longer in the cache", out.getvalue())
+        self.assertIn("0.4.0", out.getvalue())
+
+        # And green when the record names only what is there -- otherwise the red above proves nothing.
+        (here / "docs" / "patch-record.md").write_text("nothing named here\n")
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(0, cli.trees(record=record, cache=cache))
+        self.assertIn("accounted for by the record", out.getvalue())
+
     def test_file_changed_before_the_turn_is_left_to_catch_up(self):
         path = self.home / "memory" / "old.md"
         path.write_text(note("old-note", "changed before this turn", "Body."))

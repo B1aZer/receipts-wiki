@@ -148,3 +148,45 @@ process. A citation's label must say whether the source was read; these say so.
    output records that its code changed underneath it. The sessions cannot notice; the people must be told.
 4. **Scope.** Content fixes only, where both builds are correct apart from the defect. A generator or
    budget change does not go down this path — see the next section of `docs/in-place-remediation.md`.
+
+## 2026-10-15 — condition 2 is satisfied, and seven of the ten targets no longer exist
+
+**Condition 2 above is now met in code.** `config.superseded()` reads this file from the installed
+tree and compares **content**, not path: a tree's own modal file mtime is the baseline, a file written
+after it is the outlier, and a hash this document names is what accounts for it. The notice still
+fires on a patched tree — it says *accounted for*, and it says the tree does not match the commit the
+install record names, so a receipt from that session cannot cite that commit. Tuning it quiet was the
+one option ruled out when this file was written, and it stayed ruled out.
+
+⭐ **The reconciliation could not be finished inside the guard, and the reason is the defect itself.**
+`config.superseded()` shipped in `0.4.1-dev.2`. The ten trees patched here keep their own older
+`config.py` — the patch replaced `watch.py` only, deliberately, that being the single content-only
+consistent unit — so **the guard does not exist in any tree it was asked to answer for**, and never
+will. Measured the same morning: `superseded` is present in `0.4.1-dev.2` and absent from
+`0.3.0-dev.28`, `0.3.0`, `0.4.0` and `0.4.1-dev.1`. A check can only ever answer for the tree it runs
+in, and the tree it runs in is the current one. So the audit that answers for all of them reads the
+cache from outside, as `rw.py trees` — **the same perimeter the applier had to live outside of, for
+the same reason, arrived at twice independently.**
+
+⚠️ **Seven targets were pruned from the cache at 2026-10-15 08:57 local:** `0.3.0-dev.21` through
+`0.3.0-dev.27`. Their rows stay in the table above, because the table records what was patched and not
+what is still there; `rw.py trees` reports a recorded target that is missing as a **finding and exits
+non-zero**, rather than skipping it — skipping a target a tree does not have is exactly how the graft
+gate in this repo produced a false SAFE. **The PM2 hazard this document cites did not land:** zero
+occurrences of a missing `rw.py` across every transcript that mentions it, and zero plugin hook
+failures dated 2026-10-15 in any session but the one auditing them. The pruned trees are the oldest,
+and the earliest live session predates none of the three that remain.
+
+| state | what the guard says, measured on the real cache |
+|---|---|
+| patched in place, superseded path (`0.3.0`, `0.3.0-dev.28`, `0.4.0`) | the path clause **and** a content clause naming `scripts/rwlib/watch.py`, md5 `8a388570`, written 2026-10-14 15:25, accounted for by this record |
+| superseded, original content (`0.4.1-dev.1`) | the path clause alone — no content clause, which is what distinguishes it from the three above |
+| installed, original content (`0.4.1-dev.2`) | silent |
+| still carrying the defect | not reproducible on this machine: no leaky tree remains. Shown in a fixture instead, as a tree whose drifted content no hash here names |
+
+Red-proved five ways on copies of the real trees, never on the cache itself: an unexplained file in a
+superseded tree; an unexplained file in the **installed** tree, where the path check is silent by
+construction; a recorded patch applied to the installed tree, which must still speak and say
+*accounted for*; a record present but silent about the file, which must **not** quiet it; and the
+whole tree rewritten at once, where no file is an outlier and the install record's own `lastUpdated`
+is the only thing that sees it. An untouched copy returns to silence, so the detector is not stuck on.

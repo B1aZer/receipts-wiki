@@ -100,6 +100,9 @@ def main(argv):
     res.add_argument("session", nargs="?", default=None, help="session id; omit to use --cwd or the most recent session")
     res.add_argument("--cwd", default=None, help="recover the most recent session archived for this working directory")
     res.add_argument("--limit", type=int, default=20)
+    audit = commands.add_parser("trees", help="audit every install tree against docs/patch-record.md by content")
+    audit.add_argument("--cache", default=None, help="directory holding the install trees; default: the installed copy's parent")
+    audit.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
     home = config.home()
@@ -123,6 +126,8 @@ def main(argv):
         return cli.watch(home, session=args.session, advance=args.advance)
     if args.command == "recall":
         return cli.recall(home, " ".join(args.query), limit=args.limit)
+    if args.command == "trees":
+        return cli.trees(cache=args.cache, as_json=args.json)
     if args.command == "resume":
         return cli.resume(home, args.session, cwd=args.cwd, limit=args.limit)
     return cli.lint(home, stale_days=args.stale_days, unread_days=args.unread_days, as_json=args.json, docs=args.docs)
