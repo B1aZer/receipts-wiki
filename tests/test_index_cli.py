@@ -66,22 +66,42 @@ class IndexTests(HookTestCase):
         block = root.split(config.BLOCK_START)[1].split(config.BLOCK_END)[0]
         self.assertLessEqual(block.count("\n"), 150)
 
-    def test_an_over_budget_root_reports_degrading_instead_of_doing_it_silently(self):
-        """It degraded in silence, so a home sat in the short form with nobody told.
-
-        The area-index branch twelve lines up had warned all along; this one did not, which is why it
-        reads as an oversight rather than a decision. Measured on the author's own home: over budget,
-        already degraded, still over budget after degrading, and never once reported.
-        """
-        for index in range(160):
+    def _fill(self, count, description="a description long enough to fill the budget"):
+        for index in range(count):
             area = ("api", "infra", "tooling")[index % 3]
-            text = note(f"note-{index}", f"a description long enough to fill the budget, number {index}",
+            text = note(f"note-{index}", f"{description}, number {index}",
                         "Body.").replace("area: api", f"area: {area}")
             (self.home / "memory" / f"note_{index}.md").write_text(text)
-        out = subprocess.run(["python3", str(RW), "build-index", "--no-commit"],
-                             capture_output=True, text=True, env=self.env(), check=True)
-        self.assertIn("area indexes instead", out.stdout)
+        return subprocess.run(["python3", str(RW), "build-index", "--no-commit"],
+                              capture_output=True, text=True, env=self.env(), check=True)
+
+    def test_a_note_listing_that_cannot_fit_is_reported_as_a_state_not_a_demand(self):
+        """Past the line cap, area-index mode is the only output that can ever fit -- one line per note
+        against MAX_LINES -- so asking for it to be fixed asks for something nobody can do.
+
+        ⚠️ d2b4ec9 replaced a SILENT degradation with a warning, correctly, and never asked whether the
+        warning was satisfiable. On a home past the cap it fires on every run, forever, and a
+        permanently red check trains every session to scroll past the warnings beside it: the fix for a
+        silent failure became a permanent false alarm. Found by gingleisland-5e.
+
+        This test's ancestor asserted that unsatisfiable wording, and its fixture -- 160 notes against a
+        150-line cap -- sat in the impossible regime, so it could not have revealed that. Its real
+        intent, that degrading is never silent, is kept here and in the test below.
+        """
+        out = self._fill(160)
+        self.assertIn("(state)", out.stdout, "degrading is still never silent")
+        self.assertIn("Nothing to fix", out.stdout)
+        self.assertNotIn("did not fit", out.stdout, "a state must not be phrased as a demand")
         self.assertIn("## Areas", (self.home / "memory" / "MEMORY.md").read_text())
+
+    def test_a_listing_that_should_have_fitted_and_did_not_is_still_a_warning(self):
+        """The other regime, which is a real defect: few enough notes to list, and the block still will
+        not fit. Without this the change above would have replaced the warning everywhere rather than
+        where it is unsatisfiable, and nothing would have said so."""
+        out = self._fill(40, description="d" * 400)
+        self.assertIn("did not fit", out.stdout)
+        self.assertIn("should have fitted", out.stdout)
+        self.assertNotIn("(state)", out.stdout)
 
     def test_authored_prose_alone_does_not_degrade_the_generated_block(self):
         """A 200-line hand-written map is not a reason to stop listing notes.

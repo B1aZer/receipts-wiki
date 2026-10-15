@@ -291,6 +291,7 @@ def build(home, include=None):
         if not within_budget(text):
             warnings.append(f"memory/{path.name} is {text.count(chr(10))} lines / {len(text.encode('utf-8'))} bytes, over the {MAX_LINES}-line / {MAX_BYTES}-byte budget; split the area or move detail into notes")
 
+    states = []
     root = memory / "MEMORY.md"
     current = root.read_text(encoding="utf-8", errors="replace") if root.exists() else "# Memory map\n"
     full = _block(cursors, render_notes(groups))
@@ -302,15 +303,32 @@ def build(home, include=None):
         # degraded, still over budget after degrading, and never once reported.
         short = _block(cursors, render_areas({area: len(items) for area, items in groups.items()}))
         updated = _splice(current, short)
-        warnings.append(f"memory/MEMORY.md did not fit the {MAX_LINES}-line / {MAX_BYTES}-byte budget with "
-                        f"every note listed, so the generated block lists the {len(groups)} area indexes instead")
+        listed = sum(len(items) for items in groups.values())
+        # A note listing is one line per note. Past MAX_LINES notes it cannot fit at any byte count, so
+        # area-index mode is not a degradation to be repaired -- it is the only output that can ever fit,
+        # and asking for it to be fixed is asking for something nobody can do. d2b4ec9 replaced a SILENT
+        # failure with a warning, correctly, and did not ask whether the warning was satisfiable: on this
+        # home it fires on every run, forever. A permanently red check trains everyone to scroll past the
+        # warnings beside it, so the fix for a silent failure became a permanent false alarm. State and
+        # defect are now told apart, and only the defect is a warning.
+        if listed > MAX_LINES:
+            states.append(f"memory/MEMORY.md lists {len(groups)} area indexes rather than notes, which is "
+                          f"correct at this size: a note listing is one line per note, {listed} of them, "
+                          f"against the {MAX_LINES}-line cap on the generated block. Nothing to fix.")
+        else:
+            warnings.append(f"memory/MEMORY.md did not fit the {MAX_LINES}-line / {MAX_BYTES}-byte budget "
+                            f"with every note listed, so the generated block lists the {len(groups)} area "
+                            f"indexes instead — and with {listed} notes it should have fitted")
         if not root_within_budget(updated, short):
-            warnings.append(f"memory/MEMORY.md is {updated.count(chr(10))} lines / {len(updated.encode('utf-8'))} "
-                            f"bytes even listing only the area indexes, over the {MAX_BYTES}-byte budget; nothing "
-                            f"the generator can drop will bring this under, so cut prose outside the block")
+            warnings.append(f"memory/MEMORY.md is {len(updated.encode('utf-8'))} bytes, over the "
+                            f"{MAX_BYTES}-byte budget even listing only the area indexes; bytes are "
+                            f"whole-file, so this one is the authored prose and is the only half anyone "
+                            f"can act on")
     if _write_if_changed(root, updated):
         changed.append("memory/MEMORY.md")
-    return changed, warnings
+    # States are appended after warnings and prefixed, so a caller that prints the list unchanged still
+    # shows them, and a caller counting warnings does not count a steady state as a problem.
+    return changed, warnings + [f"(state) {line}" for line in states]
 
 
 def _write_if_changed(path, text):
