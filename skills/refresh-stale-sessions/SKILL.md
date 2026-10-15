@@ -183,6 +183,21 @@ git for-each-ref --contains <sha> --format='%(refname)'   # and which refs reach
 git ls-remote --tags origin                          # what is already published
 ```
 
+**The worked gate, as it was actually run before this repo's 2026-10-15 push.** Three config settings
+that would attach refs you did not name (`push.followTags`, `push.default`, `remote.origin.push` — all
+expected unset); the range itself (two commits, seven files, zero matches for the private path in
+`origin/main..main`); the tag's tip confirmed **not** an ancestor of `main`, so even `--follow-tags` could
+not have carried it; then `git push --no-follow-tags origin main:main`, an explicit refspec rather than a
+bare `git push`. Afterwards: `origin/main` at the expected sha, zero ahead, remote tags unchanged, and
+zero occurrences of the private path **on `origin/main`** — the push verified by reading the remote back,
+not by the command's own exit status.
+
+⚠️ **Count the publication unit, not the matching commits.** Here three commits contain the private file
+and **four** are reachable only from that tag — pushing it publishes all four, and only the second number
+describes what would be published. The cheapest check is `git ls-tree -r <tag> | grep <path>`, which
+works because the tag's *tip* carries the file; it would not have, had the tip been a deletion commit, and
+then only the history walk finds it.
+
 Push the branch by name, never `--tags`, and leave a backup tag alone rather than deleting it — deleting
 a tag that was never pushed publishes nothing, but it is still someone else's backup to retire.
 
