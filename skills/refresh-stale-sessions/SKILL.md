@@ -125,6 +125,27 @@ after. Ask for the text, not an interpretation. A session with a documented befo
 than three with none. Exercise the repaired path too, not only the defect: after 2026-10-14 the check was
 *notice still renders, quote gone* — a fix that silences the feature is not a fix.
 
+## 6b. Audit the trees from outside, by content. `python3 scripts/rw.py trees`
+
+It lists every install tree, its own write time, any file written into it afterwards, and whether a
+hash in `docs/patch-record.md` accounts for that file. Non-zero exit on either of two states, and it
+silences neither: **content no row accounts for**, and **a target the record names that is no longer in
+the cache** — a tree can be pruned while a session is still bound to it, and then its hooks fail
+outright rather than running old code, so a vanished target is a finding and not housekeeping. Seven of
+ten targets were pruned the morning after the 2026-10-14 patch.
+
+⭐ **Why this is a command and not a hook, which is worth more than the command.** A staleness check can
+only ever answer for the tree it is running in — and a check you just shipped is, by the very defect
+this skill exists for, absent from every tree you are asking about. `config.superseded()` shipped in
+`0.4.1-dev.2`; the ten patched trees keep their own older `config.py`, so the guard does not exist in
+any tree it was written to answer for and never will. **The audit has to live outside every session,
+exactly as the applier does, and for the same reason.** Expect this shape whenever you add a check in
+the same release as the fix it is meant to watch.
+
+And the matching rule for the check itself: **the record explains the alarm, it does not cancel it.** A
+patched tree is still told its content is not the commit the install record names, because no receipt it
+issues can cite that commit. Tuning a true alarm quiet is what the record discipline exists to prevent.
+
 ## 7. Give this procedure its own control before trusting its green result.
 
 Everything above has a way of passing while the property it stands for is false, and three different
@@ -147,6 +168,23 @@ to be an untouched neighbouring line, pulled into the diff as *context* because 
 place. A second session's probe was correct on the earlier range only because nothing in it had been edited
 in place — **a probe that is right on a range of pure additions is untested, not validated.** Inject a
 synthetic positive and see it fire before trusting any zero.
+
+⚠️ **Gate the REFS, not only the diff. A private file kept out of `main` can still be sitting in a
+local tag.** Found 2026-10-15 in this repo: the deliberately-unpublished multi-session plan is in three
+commits reachable only from a local `backup-pre-squash-*` tag — absent from `main`, from `origin/main`
+and from every published tag, so the diff gate was right and said nothing. But `git push --tags` or
+`--follow-tags` publishes all three and the file with them, permanently. **Same shape as a deletion
+commit publishing what it deletes: the thing you kept out of history is one careless flag from being in
+it.** So before any push, check what the refs contain and not just the range:
+
+```
+git log --all --oneline -- <the private path>        # which commits hold it at all
+git for-each-ref --contains <sha> --format='%(refname)'   # and which refs reach them
+git ls-remote --tags origin                          # what is already published
+```
+
+Push the branch by name, never `--tags`, and leave a backup tag alone rather than deleting it — deleting
+a tag that was never pushed publishes nothing, but it is still someone else's backup to retire.
 
 ## 7c. Label a citation by whether you read it.
 
