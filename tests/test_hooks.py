@@ -207,9 +207,47 @@ class HistoryGuardTests(HookTestCase):
     def test_allows_forward_and_read_only_commands(self):
         home = str(self.home)
         for command in (f"git -C {home} log --oneline -5", f"git -C {home} revert --no-edit HEAD",
-                        f"git -C {home} show HEAD:memory/a.md", "ls -la", f"git -C {home} reset -- memory/a.md",
-                        f"git -C {home} commit -m 'fix; reset --hard is not run'"):
+                        f"git -C {home} show HEAD:memory/a.md", "ls -la", f"git -C {home} reset -- memory/a.md"):
             self.assertIsNone(self.bash(command), command)
+
+    def test_a_commit_message_quoting_a_rewrite_is_not_a_rewrite(self):
+        """This row's purpose is that the REWRITE detector does not misfire on a commit message that
+        merely contains "reset --hard". It used to assert the whole hook was silent, which conflated
+        "the rewrite gate does not fire" with "this is permitted" -- and since 2026-10-15 a plain commit
+        in the memory repository is refused for a different reason, so the two have to be told apart."""
+        home = str(self.home)
+        output = self.bash(f"git -C {home} commit -m 'fix; reset --hard is not run'")
+        self.assertIsNotNone(output)
+        reason = output["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertNotIn("append-only", reason, "a message quoting a rewrite is not a rewrite")
+        self.assertIn("commits memory itself", reason)
+
+    def test_a_plain_commit_in_the_memory_repository_is_refused(self):
+        """`unrekt-16` ran `cd ~/.agents && git commit -q -m … -- memory/<file>.md` three times on
+        2026-10-15 and observed that it would probably still pass the fixed write gate, because git
+        commit modifies .git rather than the pathspec it names, so there is no write TARGET to resolve.
+        Measured: correct, and the history gate owns only rewrites, so nothing covered it.
+
+        ⭐ 16's own argument for closing it: an action that is harmless nine times out of ten is exactly
+        the one a gate has to catch, because nothing downstream complains about a harmless commit -- so
+        the gate is the only feedback path. The harm is in the shape: a commit over a note another
+        session is still editing pins a receipt on a state its author did not choose, and the note 16
+        had read went through nine more edits afterwards. AGENTS.md: "In Claude Code the receipts-wiki
+        hooks commit ~/.agents at the end of each turn; don't run git there."
+        """
+        home = str(self.home)
+        for command in (f"cd {home} && git commit -q -m 'msg' -- memory/a.md",
+                        f"cd {home} && git add memory/a.md",
+                        f"git -C {home} commit -q -m 'msg' -- memory/a.md",
+                        "git commit -q -m 'msg' -- memory/a.md"):
+            output = self.bash(command, cwd=home)
+            self.assertIsNotNone(output, command)
+            self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny", command)
+            self.assertIn("Write or Edit", output["hookSpecificOutput"]["permissionDecisionReason"])
+        # Reading, reverting and other repositories must stay untouched, or this is not a scoped rule.
+        for command in (f"git -C {home} status --short", f"git -C {home} log --oneline",
+                        f"git -C {home} revert --no-edit HEAD", "git commit -q -m 'msg' -- CHANGELOG.md"):
+            self.assertIsNone(self.bash(command, cwd="/work/api"), command)
 
     def test_ignores_other_repositories(self):
         other = self.tmp / "project"
@@ -281,6 +319,35 @@ class ShellWriteTests(HookTestCase):
         # The same command from outside the home must stay allowed, or this is not measuring the working
         # directory at all -- it is just blocking the word.
         self.assertIsNone(self.shell_at("echo x > a.md", "/work/api"))
+
+    def test_quoting_a_write_is_not_performing_one(self):
+        """An interpreter has to be the thing being RUN, not a word somewhere in the text. A commit
+        message or report that quotes `python3 -c "open(<home>/x.md, 'w')"` names an interpreter, a write
+        and the home, and performs none of them -- and the gate denied exactly that, including the probe
+        script used to find the cd bypass. A gate that cries wolf on commit messages is a gate everyone
+        learns to route around.
+
+        ⚠️ Narrower than it was reported to be, which is why it is pinned here. The warning relayed to
+        gingleisland-5e was that any text quoting a write near a memory path would be denied; measured,
+        the fallback needs THREE things at once -- interpreter, QUOTED write pattern, and the home -- so
+        the first two rows below were never blocked and the prediction was too broad."""
+        memory = f"{self.home}/memory"
+        for command in (
+                f'git commit -m "note that {memory}/a.md used write_text once" -- docs/x.md',
+                f'git commit -m "python3 rw.py wrote {memory}/MEMORY.md" -- docs/x.md',
+                f'git commit -m "python3 -c \\"open({memory}/a.md, \'w\')\\" was denied" -- docs/x.md',
+                f'echo "python3 -c open(\'{memory}/a.md\',\'w\')" >> /tmp/notes.md'):
+            self.assertIsNone(self.shell(command), command)
+        # The real invocations must still be caught, or this is a hole rather than a narrowing. Each has
+        # the interpreter as the command word of its own segment.
+        for command in (f"python3 - <<'PY'\nopen('{memory}/a.md','w')\nPY",
+                        f"python3 -c \"open('{memory}/a.md','w')\"",
+                        f"RECEIPTS_WIKI_HOME={self.home} python3 -c \"open('{memory}/a.md','w')\"",
+                        f"cd {memory} && python3 -c \"open('a.md','w')\"",
+                        f"node -e \"require('fs').writeFileSync('{memory}/a.md','x')\""):
+            output = self.shell(command)
+            self.assertIsNotNone(output, command)
+            self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny", command)
 
     def test_guard_script_starts_python_only_for_commands_that_mention_memory(self):
         guard = RW.parent / "shell-guard.sh"

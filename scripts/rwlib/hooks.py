@@ -157,6 +157,28 @@ def _rewrites_history(sub, args):
     return False
 
 
+def _writes_the_repo(sub, args):
+    """True when this git subcommand CHANGES the memory repository rather than reporting on it.
+
+    Separate from `_rewrites_history` and for a different reason. Nothing here destroys history; the
+    harm is in the shape. The plugin's own hooks commit memory at every turn boundary, so a session
+    committing is pure redundancy -- and a redundant commit over another session's in-flight note pins
+    a receipt on a state its author did not choose. Measured by `unrekt-16`, whose three commits were
+    each harmless in isolation: the note it had read went through nine more edits afterwards.
+
+    ⭐ **An action that is harmless nine times out of ten is exactly the one a gate has to catch**, 16's
+    own argument, because nothing downstream complains about a harmless commit -- so the gate is the
+    only feedback path, and `AGENTS.md` line 28 had no detector at all until this.
+
+    `revert` is deliberately absent: the rewrite message recommends it as the way to undo. So are the
+    read verbs -- log, status, show, diff, blame, ls-files, rev-parse -- which are how a session is
+    supposed to inspect memory.
+    """
+    del args
+    return sub in ("commit", "add", "rm", "mv", "stash", "apply", "am", "cherry-pick", "merge",
+                   "pull", "clean", "restore", "checkout", "switch", "tag", "notes", "push")
+
+
 def _git_calls(command, cwd):
     """Yield (repository directory, subcommand, arguments) for each git invocation in a shell command."""
     current = cwd
@@ -283,7 +305,7 @@ def _shell_write_reason(command, home, cwd=None):
     prefixes = _home_prefixes(home)
     markers = _memory_markers(home)
     here = cwd or os.getcwd()
-    script_cwd_inside = False
+    script_cwd_inside = script_tool_run = False
     for raw in re.split(r"&&|\|\||[;|\n]", command):
         segment = raw.strip().lstrip("(").rstrip(")").strip()
         if not segment:
@@ -329,12 +351,18 @@ def _shell_write_reason(command, home, cwd=None):
             for word in segment.split():
                 if word.startswith("of=") and _lands_in(word[3:], local, prefixes):
                     return "writes a file with dd"
-        if SCRIPT_TOOL.search(segment) and _lands_in(".", local, prefixes):
-            script_cwd_inside = True
+        if SCRIPT_TOOL.fullmatch(tool or ""):
+            # The interpreter has to be the thing being RUN, not a word that appears somewhere in the
+            # text. `git commit -m "... <home>/memory ... write_text ..."` names an interpreter and a
+            # write and performs neither; denying it is a false alarm on ordinary work, and a gate that
+            # cries wolf on commit messages is a gate everyone learns to route around.
+            script_tool_run = True
+            if _lands_in(".", local, prefixes):
+                script_cwd_inside = True
     # A script's own writes are invisible here, so two proxies, each labelled as one: it runs FROM inside
     # the home (its relative writes land there), or it names the home and a write in the same breath.
     if SCRIPT_WRITE.search(command) and (script_cwd_inside
-                                         or (SCRIPT_TOOL.search(command)
+                                         or (script_tool_run
                                              and any(marker in command for marker in markers))):
         return "runs a script that writes files"
     return None
@@ -376,6 +404,19 @@ def hook_history(payload):
                     "so commits are never removed or replaced. Correct forward instead: edit the note and add a Supersedes line, "
                     "or use `git revert <commit>`, which records the undo as a new commit. "
                     "If the user still wants to rewrite history, tell them they can run the command themselves outside the agent."),
+            }})
+            return
+        if (target == home or home in target.parents) and _writes_the_repo(sub, args):
+            _emit({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": (
+                    f"receipts-wiki blocked `git {sub}` in the memory repository {home}: the plugin commits memory "
+                    "itself at every turn boundary, so a session running git here is redundant at best -- and a commit "
+                    "over a note another session is still editing pins a receipt on a state its author did not choose. "
+                    "Change notes with Write or Edit and let the hooks commit them. Reading is fine: log, status, show, "
+                    "diff and blame are not blocked, and `git revert <commit>` stays available. If the user wants this "
+                    "run anyway, tell them they can run it themselves outside the agent."),
             }})
             return
 
