@@ -339,6 +339,130 @@ def plan(args):
     return stale, projects
 
 
+# Measured on three live working trees before any of this was written, counting files and reading no
+# contents (docs/unwritten-work-gate.md):
+#
+#     all untracked (naive)          1,935   <- 926 of GingleIsland's 949 are .png/.webp sheets
+#     under tools/ scripts/ bin/     1       <- REJECTED: quiet because BLIND, 0 of unrekt's 96
+#     newer than session start       936     <- selectivity is repo churn, not design
+#     source-like AND mtime <= 24h   7       <- shipped, and it names both halves of the one known
+#                                               true positive: the script and the result beside it
+#
+# The naive gate is ~20x louder than anyone estimated, and one extension test removes 98% of it. The
+# quietest candidate was rejected despite the best numbers: it encodes one repo's layout and reads as
+# clean everywhere else, which is the failure this plugin already had.
+SOURCE_LIKE = {".py", ".sh", ".js", ".ts", ".tsx", ".sql", ".md", ".rs", ".go", ".rb", ".toml",
+               ".yaml", ".yml", ".json", ".ipynb", ".c", ".h", ".cpp", ".zig", ".lua", ".glsl"}
+UNWRITTEN_HOURS = 24
+# A path listed here is dropped WITHOUT COMMENT. Some files are untracked on purpose.
+SILENCE_FILE = ".receipts-wiki-unwritten-ignore"
+
+
+def unwritten_work(cwd, hours=UNWRITTEN_HOURS):
+    """What a restart of a session in this directory would take with it.
+
+    Returns {"modified": [...], "untracked": [...], "silenced": n, "repo": str|None}. Separate lists
+    because the treatments are OPPOSITE: an untracked file survives `git checkout` and is invisible to
+    every staleness tool, a tracked modification is visible to everyone and destroyed by one checkout.
+    "You have uncommitted work" conflates them and prescribes the wrong fix for one.
+    """
+    code, out, _err = run(["git", "-C", cwd, "rev-parse", "--show-toplevel"])
+    repo = out.strip() if code == 0 else None
+    if not repo:
+        return {"modified": [], "untracked": [], "silenced": 0, "repo": None}
+    silenced = set()
+    ignore = Path(repo) / SILENCE_FILE
+    if ignore.exists():
+        try:
+            silenced = {line.strip() for line in ignore.read_text().splitlines()
+                        if line.strip() and not line.startswith("#")}
+        except OSError:
+            silenced = set()
+    _code, out, _err = run(["git", "-C", repo, "status", "--porcelain", "--untracked-files=all"])
+    cutoff = time.time() - hours * 3600
+    modified, untracked, dropped = [], [], 0
+    for line in out.splitlines():
+        if len(line) < 4:
+            continue
+        code, rel = line[:2], line[3:].strip().strip('"')
+        if rel in silenced:
+            dropped += 1
+            continue
+        path = Path(repo) / rel
+        if code == "??":
+            if path.suffix.lower() not in SOURCE_LIKE:
+                continue
+            try:
+                if path.stat().st_mtime < cutoff:
+                    continue
+            except OSError:
+                continue
+            untracked.append(rel)
+        elif code.strip():
+            # The SAME conjunction as the untracked half, measured separately on 2026-10-16 because the
+            # design document had measured only state three and I had built state two from nothing. The
+            # first real run printed 608 modified files for one tree -- the exact dismissal-training
+            # failure that document exists to prevent, in the half it did not cover.
+            #
+            #     all modified        609     <- the naive gate
+            #     source-like         490     <- barely helps: 489 of one tree's 608 ARE source
+            #     source-like & 24h   3       <- shipped, same magnitude as the untracked rule's 7
+            #     source-like & 2h    1       <- too tight; misses work from earlier the same day
+            #
+            # ⭐ The inverse of the untracked finding, where the extension test removed 98% and mtime
+            # added nothing. Here mtime does all the work and the extension almost none. The two states
+            # need the same conjunction for OPPOSITE reasons, which is a better argument for the
+            # conjunction than either state alone could make.
+            if path.suffix.lower() not in SOURCE_LIKE:
+                continue
+            try:
+                if path.stat().st_mtime < cutoff:
+                    continue
+            except OSError:
+                continue
+            modified.append(rel)
+    return {"modified": sorted(modified), "untracked": sorted(untracked),
+            "silenced": dropped, "repo": repo}
+
+
+def report_unwritten(stale):
+    """One block per working directory a restart would touch. Reports state; never says `commit`."""
+    seen, blocks = set(), []
+    for session in stale:
+        cwd = session.get("cwd")
+        if not cwd or cwd in seen:
+            continue
+        seen.add(cwd)
+        found = unwritten_work(cwd)
+        if not found["repo"] or not (found["modified"] or found["untracked"]):
+            continue
+        blocks.append((cwd, found))
+    if not blocks:
+        print("\nunwritten work: nothing modified or recently untracked in any affected tree.")
+    else:
+        print("\nUNWRITTEN WORK a restart would carry. State only -- these are not instructions:")
+        for cwd, found in blocks:
+            print(f"  {cwd}")
+            if found["modified"]:
+                print(f"    modified, tracked, source-like, under {UNWRITTEN_HOURS}h "
+                      f"({len(found['modified'])}): destroyed by one checkout, visible to every session")
+                for rel in found["modified"][:8]:
+                    print(f"      {rel}")
+            if found["untracked"]:
+                print(f"    untracked, source-like, under {UNWRITTEN_HOURS}h "
+                      f"({len(found['untracked'])}): survives checkout, invisible to every staleness tool")
+                for rel in found["untracked"][:8]:
+                    print(f"      {rel}")
+            if found["silenced"]:
+                print(f"    ({found['silenced']} path(s) dropped by {SILENCE_FILE})")
+    # State four, which no detector outside the session can see, so it is asked rather than reported.
+    print("\n  ⚠️ And the state nothing above can detect: a result computed and never written down.")
+    print("     It is invisible from outside and a session holding one reads as the CHEAPEST to cut,")
+    print("     because `ps` shows it idle. Ask each session for unwritten NUMBERS, not for whether")
+    print("     anything is running -- states three and four travel together, so a tree listed above")
+    print("     is where to ask first.")
+
+
 def vscode_task(stale, label="Refresh stale Claude sessions"):
     """A compound task that reopens every affected session, each in its own terminal.
 
@@ -501,6 +625,7 @@ def main(argv=None):
             return 0
         if args.apply:
             return apply(args, stale, projects)
+        report_unwritten(stale)
         print("Dry run: nothing was stopped or resumed.")
         print("  --emit-commands  print the commands for review")
         print("  --apply          perform it (one session per run unless --max says otherwise)")

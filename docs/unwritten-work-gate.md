@@ -92,8 +92,40 @@ minutes earlier. State reporting was right for a reason this design did not have
 is a better argument for it than the deliberately-untracked case it was written for — that one can be
 silenced once, while this one **changes under the gate.**
 
-## Sequencing
+## Sequencing — ⚠️ SUPERSEDED 2026-10-16, and the correction matters more than the plan did
 
-Shipping this now would not take effect. `${CLAUDE_PLUGIN_ROOT}` is resolved once per process, so the
-15 sessions started before an install keep executing their old tree; a new gate reaches them only at
-restart. The gate is therefore queued behind the refresh, not ahead of it.
+This section said: shipping now would not take effect, because `${CLAUDE_PLUGIN_ROOT}` is resolved once
+per process, so sessions started before an install keep their old tree and a new gate reaches them only
+at restart — therefore queue the gate behind the refresh.
+
+⭐ **The premise is right and the conclusion was wrong. A hook would have arrived exactly too late,
+every time: the restart is the moment the gate exists for.** So the gate is not a hook. It is a section
+of `tools/refresh-stale-sessions.py`, the pre-flight that stages the restart, which runs fresh and is
+therefore never stale — and nothing is queued behind anything.
+
+**Third independent arrival at the same boundary this week.** The in-place patch applier cannot live in
+a session because a session is denied the write; `rw.py trees` cannot be a hook because a staleness
+check shipped with its own fix is absent from every tree it must judge; and this gate cannot be a hook
+because it must speak before the restart that would install it. **A check that has to answer for a
+session cannot live inside it.**
+
+## 2026-10-16 — the modified half, measured after it had already shipped loud
+
+⚠️ **This document measured four rules for the UNTRACKED state and nothing for the MODIFIED one**, where
+it said only "git status, patch it". So the untracked half was built from a measurement and the modified
+half from nothing, and the first real run printed **608 modified files for one tree** — the exact
+dismissal-training failure this document exists to prevent, in the half it did not cover. A measured
+rule beside an unmeasured one reads as measured.
+
+| rule | GingleIsland | unrekt | receipts-wiki | total |
+|---|---|---|---|---|
+| all modified | 0 | 608 | 1 | **609** |
+| source-like extension | 0 | 489 | 1 | 490 |
+| **source-like ∧ mtime ≤ 24h (shipped)** | 0 | 2 | 1 | **3** |
+| source-like ∧ mtime ≤ 2h | 0 | 0 | 1 | 1 |
+
+⭐ **The inverse of the untracked finding, and that is why the conjunction is right.** There the
+extension test removed 98% of 1,935 and mtime added nothing; here mtime does all the work and the
+extension almost none — 489 of one tree's 608 dirty files *are* source. **The two states need the same
+conjunction for opposite reasons**, which is a stronger argument for it than either state could make
+alone. Two hours was rejected as too tight: it drops work from earlier the same day.
