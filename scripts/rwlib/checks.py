@@ -223,6 +223,20 @@ def note_rules(home, subjects, items=None, skip=()):
                 found.append(("decision-without-evidence", rel,
                               f"{rel} states a decision with nothing to check it against. Cite where it was ruled "
                               "out: a session and turn, a commit, a measurement, or a file and line."))
+        # ⛔ DO NOT remove this on the grounds that an agent can check its own links. 2026-10-16,
+        # reported first-hand by `gingleisland-52`: it wrote a CORRECT link, then a hand-rolled verifier
+        # it had written read only `^name:` from frontmatter, skipped the one note that declares no
+        # `name:`, and reported the correct link as missing. It grepped for the short form, read an
+        # empty result as confirmation, and "fixed" a working link into a broken one. The second script
+        # it wrote to verify the fix derived names by STRIPPING the type prefix, so it agreed. ⭐ Two
+        # instruments, one shared wrong assumption, agreement guaranteed -- which is why self-checking
+        # cannot replace this: a session checks its links with the same rule it wrote them with. This
+        # check named the right note and the right replacement in one turn.
+        #
+        # ⚠️ Known and accepted trade: it cannot tell a counter-example from a link, so it fires on
+        # prose explaining the rule until the wrong form is written in backticks. That is the right
+        # direction for this one -- a false block is visible, a silently broken link is not -- and it is
+        # recorded here so nobody "fixes" it into silence.
         misspelled = {}
         for link in WIKILINK.findall(item["text"]):
             if gitlog.slug(link) not in known and _bare(link) in bare:
