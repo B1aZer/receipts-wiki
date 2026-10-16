@@ -102,7 +102,25 @@ def hook_gate(payload):
         reasons.append(f"it contains injected context (<{tag}>); remove tool or system text before saving")
     phrase = secrets.find_relative_date(added)
     if phrase:
-        reasons.append(f"it uses a relative date ({phrase!r}); write an absolute date such as 2026-09-14")
+        # The advice used to stop at "write an absolute date", which is no help at all when the word is
+        # being QUOTED as the defect being recorded. unrekt-84 hit this on 2026-10-16 writing up a note
+        # about provenance labels anchored to words that expire: to record that defect the note has to
+        # quote the expiring string, and this check cannot tell a relative date being USED from one
+        # being quoted as evidence. It blocks hardest on the notes documenting its own failure class.
+        #
+        # Measured before changing anything: of the 7 notes in the author's home containing a relative
+        # date, 0 are mention-only and all 7 use one in prose. ⚠️ That number cannot be read as a
+        # frequency, and the reason is the point -- a blocked write leaves no note, so the corpus can
+        # only ever show the cases this check let through. An exemption is therefore unearned rather
+        # than disproven, and a cheap one (honour backticks) would be a bypass anyone could learn.
+        #
+        # So the gate stands and the ADVICE gets the missing half: what to do when the string is the
+        # evidence, which is what 84 worked out for itself and should not have had to.
+        reasons.append(f"it uses a relative date ({phrase!r}); write an absolute date such as 2026-09-14. "
+                       "If you are QUOTING a relative date as the thing that went wrong, the exact string "
+                       "cannot be kept here: paraphrase it, say in the note that you paraphrased, and give "
+                       "the absolute date it referred to — a reader can then tell your words from the "
+                       "source's, which a silent paraphrase would not let them do")
     current = state.content_hash(path, rel)
     if current is not None:
         seen = state.load(payload.get("session_id"))["reads"].get(rel)

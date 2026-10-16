@@ -118,6 +118,32 @@ class GateTests(HookTestCase):
         reason = self.deny_reason(self.hook("gate", self.payload("Edit", path, old_string="x", new_string="Fixed yesterday.")))
         self.assertIn("relative date", reason)
 
+    def test_quoting_a_relative_date_as_the_defect_still_blocks_but_says_what_to_do(self):
+        """The check cannot tell a relative date being USED from one quoted as the thing that went wrong,
+        and it blocks hardest on the notes documenting its own failure class -- unrekt-84 hit it twice on
+        one paragraph writing up provenance labels anchored to words that expire.
+
+        ⚠️ The gate is NOT loosened, and the measurement is why: of the 7 notes in the author's home
+        containing a relative date, 0 are mention-only. ⚠️ But that is not a frequency -- a blocked write
+        leaves no note, so the corpus can only show what this check let through, and an exemption is
+        unearned rather than disproven. A cheap one (honour backticks) would be a bypass anyone could
+        learn in a keystroke.
+
+        What was wrong was the ADVICE: "write an absolute date such as 2026-09-14" is no help when the
+        string is the evidence. The message now prescribes what 84 worked out unaided -- paraphrase, say
+        that you did, and give the absolute date -- so a reader can tell the author's words from the
+        source's. A gate's message is its product; this one was missing half of it.
+        """
+        path = self.home / "memory" / "a.md"
+        quoted = 'The label read `observed in the current session`, dated "tonight".'
+        reason = self.deny_reason(self.hook("gate", self.payload("Edit", path, old_string="x", new_string=quoted)))
+        self.assertIn("relative date", reason, "the gate must still fire on a quoted relative date")
+        self.assertIn("QUOTING", reason, "the advice has to cover the case that just blocked")
+        self.assertIn("paraphrase", reason)
+        # An ordinary use is still caught, so the advice did not replace the rule.
+        plain = self.deny_reason(self.hook("gate", self.payload("Edit", path, old_string="x", new_string="Fixed yesterday.")))
+        self.assertIn("absolute date", plain)
+
     def test_relative_date_already_in_file_does_not_block_rewrite(self):
         path = self.home / "memory" / "a.md"
         original = note("a", "cache", "Noted today by an older tool.")
