@@ -10,6 +10,10 @@ AGENTS_BUDGET_BYTES = 8000
 AGENTS_BUDGET_LINES = 50
 # The area index for the working directory is loaded by its own SessionStart hook, under the same output cap.
 AREA_INDEX_CHARS = 9000
+# How much of a note's description an area-index line carries. The line is a POINTER and the note keeps
+# the full text, so this costs nothing and buys delivery: descriptions had grown to a 217-character mean
+# on the author's home, which spent the whole window above on a third of the notes.
+AREA_INDEX_DESC_CHARS = 100
 
 # Generated block inside memory/MEMORY.md; text outside it belongs to the user and the agent.
 BLOCK_START = "<!-- receipts-wiki:areas:start -->"

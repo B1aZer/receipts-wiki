@@ -141,8 +141,27 @@ def by_priority(item):
     return (item.get("priority") is None, item.get("priority") or 0, item["name"].lower())
 
 
-def note_line(item):
-    description = f": {item['description']}" if item["description"] else ""
+def _hook(description, limit):
+    """A description cut to a hook: enough to decide whether to open the note, and no more.
+
+    Nothing is lost by trimming here -- the note keeps its full description, and both `find` and
+    recall read the notes rather than this file. Prefer a sentence boundary so a line never ends
+    mid-clause; otherwise cut on a word and mark it, because the ellipsis is the tell that the note
+    says more. Never cut below half the limit: a one-clause opening identifies nothing.
+    """
+    if not limit or len(description) <= limit:
+        return description
+    head = description[: limit + 1]
+    for end in (". ", "? ", "! "):
+        stop = head.rfind(end)
+        if stop >= limit // 2:
+            return description[: stop + 1]
+    return head[:limit].rsplit(" ", 1)[0] + "\u2026"
+
+
+def note_line(item, desc_limit=None):
+    description = _hook(item["description"], desc_limit)
+    description = f": {description}" if description else ""
     return f"- [{item['name']}]({item['file']}){description}"
 
 
@@ -150,7 +169,8 @@ def render_area(area, items):
     lines = [f"# {area} index", "", f"{GENERATED_MARK} Edit the notes, not this file.", ""]
     if not items:
         lines.append("No active notes.")
-    lines.extend(note_line(item) for item in sorted(items, key=lambda n: n["name"].lower()))
+    lines.extend(note_line(item, config.AREA_INDEX_DESC_CHARS)
+                 for item in sorted(items, key=lambda n: n["name"].lower()))
     return "\n".join(lines) + "\n"
 
 
