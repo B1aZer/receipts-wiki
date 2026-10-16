@@ -166,6 +166,26 @@ def note_line(item, desc_limit=None):
 
 
 def render_area(area, items):
+    """One line per note, each description trimmed to a hook.
+
+    The trim is denominated in the session-start DELIVERY window (`config.AREA_INDEX_CHARS`), not in
+    this file's byte budget: the two differ by about half, and the looser one is the one that gets
+    quoted into a session. Untrimmed, the author's largest index put 32 of its notes into a session and
+    the rest nowhere; trimmed it delivers 52. Only `MEMORY.md`'s cursor lines stay full-length, because
+    there a line is a POSITION rather than a pointer, and the trimmed half would be the useful half.
+
+    Trimming does not make a long index whole, and it is not meant to: whole delivery needs FEWER
+    NOTES, so `audit` still asks for the split.
+
+    ⚠️ The byte totals move with the corpus and the delivery ratio does not. Re-measured 2026-10-16 at
+    87 notes in that index against 84 when the rule was written, and 32 -> 52 reproduced exactly while
+    every byte figure had changed. One of those numbers is a property of the design and the others are
+    properties of the corpus on a given afternoon (`gingleisland-52`, who wrote this rule).
+
+    ⛔ Do not re-point this at the 17,000-byte file budget. That confusion cost two days: the file
+    budget and the delivery window are different constants for different objects, and one constant was
+    doing both jobs before this.
+    """
     lines = [f"# {area} index", "", f"{GENERATED_MARK} Edit the notes, not this file.", ""]
     if not items:
         lines.append("No active notes.")
